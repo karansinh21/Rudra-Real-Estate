@@ -1,0 +1,31 @@
+{
+  "api": {
+    "title": "🏠 Rudra Real Estate API",
+    "status": "running ✅",
+    "version": "2.0.0"
+  },
+  "welcome": "Welcome to Rudra Real Estate",
+  "property": {
+    "added": "Property added successfully",
+    "updated": "Property updated successfully",
+    "deleted": "Property deleted successfully",
+    "notFound": "Property not found"
+  },
+  "enquiry": {
+    "submitted": "Enquiry submitted successfully",
+    "thankYou": "Thank you for your enquiry",
+    "updated": "Enquiry status updated"
+  },
+  "auth": {
+    "registered": "Registration successful",
+    "loginSuccess": "Login successful",
+    "invalidCredentials": "Invalid credentials",
+    "otpSent": "OTP sent successfully",
+    "otpVerified": "OTP verified successfully"
+  },
+  "errors": {
+    "serverError": "Internal server error",
+    "notFound": "Resource not found",
+    "unauthorized": "Unauthorized access"
+  }
+}

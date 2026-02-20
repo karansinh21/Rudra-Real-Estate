@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= UNIFIED USER MODEL =============
+// One model for all users: PUBLIC, BROKER, LAWYER, ADMIN
+model User {
+  id                  String         @id @default(uuid())
+  name                String
+  email               String         @unique
+  password            String
+  phone               String?        @unique
+  address             String?
+  city                String?
+  state               String?
+  role                UserRole       @default(PUBLIC)
+  status              UserStatus     @default(ACTIVE)
+  isVerified          Boolean        @default(false)
+  
+  // 🆕 Social Login Fields
+  googleId            String?        @unique
+  appleId             String?        @unique
+  avatar              String?
+  loginMethod         LoginMethod    @default(EMAIL)
+  
+  // Professional details (for BROKER and LAWYER only)
+  professionalDetails Json?          // { licenseNumber, experience, specialization, etc }
+  
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  
+  // Relations (only for respective roles)
+  properties          Property[]     // For BROKER
+  enquiries           Enquiry[]      // For BROKER
+  legalRequests       LegalRequest[] // For BROKER
+  legalServices       LegalService[] // For LAWYER
+
+  @@map("users")
+}
+
+// ============= PROPERTY MODEL =============
+model Property {
+  id          String          @id @default(uuid())
+  title       String
+  description String
+  type        PropertyType
+  purpose     PropertyPurpose
+  price       Float
+  area        Float
+  bedrooms    Int?
+  bathrooms   Int?
+  address     String
+  city        String
+  state       String
+  pincode     String
+  features    String[]
+  status      String          @default("AVAILABLE")
+  
+  // Location coordinates
+  latitude    Float?
+  longitude   Float?
+  
+  // Images
+  images      Json?           @default("[]")
+  
+  // Relations
+  brokerId    String
+  broker      User            @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  enquiries   Enquiry[]
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([brokerId])
+  @@map("properties")
+}
+
+// ============= ENQUIRY MODEL =============
+model Enquiry {
+  id          String   @id @default(uuid())
+  propertyId  String
+  clientName  String
+  clientEmail String
+  clientPhone String
+  message     String?
+  status      String   @default("PENDING")
+  brokerId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  broker      User     @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([brokerId])
+  @@map("enquiries")
+}
+
+// ============= LEGAL SERVICE MODEL =============
+model LegalService {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  lawyerId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  lawyer      User     @relation(fields: [lawyerId], references: [id], onDelete: Cascade)
+
+  @@index([lawyerId])
+  @@map("legal_services")
+}
+
+// ============= LEGAL REQUEST MODEL =============
+model LegalRequest {
+  id              String   @id @default(uuid())
+  brokerId        String
+  serviceType     String
+  propertyDetails String
+  clientName      String
+  clientContact   String
+  description     String?
+  status          String   @default("PENDING")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  broker          User     @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+
+  @@index([brokerId])
+  @@map("legal_requests")
+}
+
+// ============= LAND REQUIREMENT MODEL =============
+model LandRequirement {
+  id                 String   @id @default(uuid())
+  name               String
+  email              String
+  phone              String
+  purposeType        String
+  landType           String
+  minArea            Float
+  maxArea            Float
+  areaUnit           String
+  preferredLocations String[]
+  city               String   @default("Vadodara")
+  state              String   @default("Gujarat")
+  minBudget          Float
+  maxBudget          Float
+  features           String[]
+  timeline           String
+  additionalNotes    String?
+  status             String   @default("ACTIVE")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("land_requirements")
+}
+
+// ============= ENUMS =============
+enum UserRole {
+  PUBLIC   // Normal users (property seekers)
+  BROKER   // Property brokers/agents
+  LAWYER   // Legal professionals
+  ADMIN    // System administrators
+}
+
+enum UserStatus {
+  ACTIVE    // Account is active and can login
+  PENDING   // Waiting for admin approval (for BROKER/LAWYER)
+  REJECTED  // Application rejected
+  BLOCKED   // Account blocked by admin
+}
+
+// 🆕 Login Method Enum
+enum LoginMethod {
+  EMAIL      // Traditional email/password
+  GOOGLE     // Google OAuth
+  APPLE      // Apple ID
+  WHATSAPP   // WhatsApp OTP
+  PHONE      // Phone SMS OTP
+}
+
+enum PropertyType {
+  RESIDENTIAL
+  COMMERCIAL
+  AGRICULTURAL
+  INDUSTRIAL
+  LAND
+}
+
+enum PropertyPurpose {
+  SALE
+  RENT
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  SOLD
+  RENTED
+  UNDER_NEGOTIATION
+}
