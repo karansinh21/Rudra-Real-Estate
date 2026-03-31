@@ -4,75 +4,74 @@ import { AuthProvider } from './utils/AuthContext';
 import { LanguageProvider } from './utils/LanguageContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Navbar from './components/layout/Navbar';
+import AdminRoutes from './pages/admin/AdminRoutes';
 
 // Essential Public Pages (Load immediately)
-import ModernHome from './pages/public/ModernHome';
-import CombinedAuthPage from './pages/public/CombinedAuthPage';
-import PropertyDetail from './pages/public/PropertyDetail';
+import ModernHome        from './pages/public/ModernHome';
+import CombinedAuthPage  from './pages/public/CombinedAuthPage';
+import PropertyDetail    from './pages/public/PropertyDetail';
+import ResetPasswordPage from './pages/public/ResetPasswordPage';
+import UnifiedChatWidget from './components/chat/UnifiedChatWidget';
+import SocialSidebar     from './components/layout/SocialSidebar'; // ✅ NEW
 
-// ✅ NEW: RudraAIChatBot (LiveChatWidget deleted & replaced)
-import RudraAIChatBot from './components/chat/RudraAIChatBot';
-
-// Loading Spinner Component
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="relative">
-      <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
-      <div className="mt-4 text-center text-gray-600">Loading...</div>
+      <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-orange-600" />
+      <div className="mt-3 text-center text-gray-500 text-sm">Loading...</div>
     </div>
   </div>
 );
 
-// Lazy Load Modern/Enhanced Public Pages (Heavy components)
-const GlassPropertyCards = lazy(() => import('./pages/public/GlassPropertyCards'));
-const Property3DDetail = lazy(() => import('./pages/public/Property3DDetail'));
-const Property3DViewer = lazy(() => import('./pages/public/Property3DViewer'));
-const PropertyComparison = lazy(() => import('./pages/public/PropertyComparison'));
-const VideoHeroLanding = lazy(() => import('./pages/public/VideoHeroLanding'));
-const InteractivePropertyMap = lazy(() => import('./pages/public/InteractivePropertyMap'));
-const VirtualTour360 = lazy(() => import('./pages/public/VirtualTour360'));
-const AIPropertySearch = lazy(() => import('./pages/public/AIPropertySearch'));
-const PublicUserDashboard = lazy(() => import('./pages/public/PublicUserDashboard'));
-const PublicAccountSettings = lazy(() => import('./pages/public/PublicAccountSettings'));
+// ─── Public Pages ─────────────────────────────────────────────────
+const GlassPropertyCards         = lazy(() => import('./pages/public/GlassPropertyCards'));
+const Property3DDetail           = lazy(() => import('./pages/public/Property3DDetail'));
+const PropertyComparisonEnhanced = lazy(() => import('./pages/public/PropertyComparisonEnhanced'));
+const VideoHeroLanding           = lazy(() => import('./pages/public/VideoHeroLanding'));
+const InteractivePropertyMap     = lazy(() => import('./pages/public/InteractivePropertyMap'));
+const VirtualTour360             = lazy(() => import('./pages/public/VirtualTour360'));
+const AIPropertySearch           = lazy(() => import('./pages/public/AIPropertySearch'));
+const PublicUserDashboard        = lazy(() => import('./pages/public/PublicUserDashboard'));
+const PublicAccountSettings      = lazy(() => import('./pages/public/PublicAccountSettings'));
+const LawyerDirectory            = lazy(() => import('./pages/public/LawyerDirectory'));
+const LawyerProfile              = lazy(() => import('./pages/public/LawyerProfile'));
+const BookConsultation           = lazy(() => import('./pages/public/BookConsultation'));
+const LandRequirement            = lazy(() => import('./pages/public/LandRequirement'));
+const LandListings               = lazy(() => import('./pages/public/LandListings'));
+const PropertyWishlist           = lazy(() => import('./pages/public/PropertyWishlist'));
+const PropertyTourScheduler      = lazy(() => import('./pages/public/PropertyTourScheduler'));
+const PropertyCalculatorSuite    = lazy(() => import('./pages/public/PropertyCalculatorSuite'));
 
-// Lazy Load Lawyer Public Pages
-const LawyerDirectory = lazy(() => import('./pages/public/LawyerDirectory'));
-const LawyerProfile = lazy(() => import('./pages/public/LawyerProfile'));
-const BookConsultation = lazy(() => import('./pages/public/BookConsultation'));
-
-// Lazy Load Land Pages
-const LandRequirement = lazy(() => import('./pages/public/LandRequirement'));
-const LandListings = lazy(() => import('./pages/public/LandListings'));
-
-// Protected Pages - Login Required
-const PropertyWishlist = lazy(() => import('./pages/public/PropertyWishlist'));
-const PropertyTourScheduler = lazy(() => import('./pages/public/PropertyTourScheduler'));
-const PropertyCalculatorSuite = lazy(() => import('./pages/public/PropertyCalculatorSuite'));
-
-// Lazy Load Broker Pages
-const BrokerDashboard = lazy(() => import('./pages/broker/BrokerDashboard'));
-const BrokerProperties = lazy(() => import('./pages/broker/BrokerProperties'));
-const AddProperty = lazy(() => import('./pages/broker/AddProperty'));
-const BrokerEnquiries = lazy(() => import('./pages/broker/BrokerEnquiries'));
-const RequestLegalService = lazy(() => import('./pages/broker/RequestLegalService'));
+// ─── Broker Pages ─────────────────────────────────────────────────
+const BrokerDashboard            = lazy(() => import('./pages/broker/BrokerDashboard'));
+const BrokerProperties           = lazy(() => import('./pages/broker/BrokerProperties'));
+const AddProperty                = lazy(() => import('./pages/broker/AddProperty'));
+const BrokerEnquiries            = lazy(() => import('./pages/broker/BrokerEnquiries'));
+const RequestLegalService        = lazy(() => import('./pages/broker/RequestLegalService'));
+const BrokerProfile              = lazy(() => import('./pages/broker/BrokerProfile'));
 const InteractiveBrokerDashboard = lazy(() => import('./pages/broker/InteractiveBrokerDashboard'));
 
-// Lazy Load Lawyer Pages
+// ─── Lawyer Pages ─────────────────────────────────────────────────
 const LawyerDashboard = lazy(() => import('./pages/lawyer/LawyerDashboard'));
-const LawyerDashboardComplete = lazy(() => import('./pages/lawyer/LawyerDashboardComplete'));
-const LawyerAccountSettings = lazy(() => import('./pages/lawyer/LawyerAccountSettings'));
+const LawyerRequests  = lazy(() => import('./pages/lawyer/LawyerRequests'));
+const LawyerServices  = lazy(() => import('./pages/lawyer/LawyerServices'));
 
-// Lazy Load Admin Pages
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AnimatedStatsDashboard = lazy(() => import('./pages/admin/AnimatedStatsDashboard'));
+// ─── Admin Pages ──────────────────────────────────────────────────
+const AdminDashboard     = lazy(() => import('./pages/admin/AdminDashboard'));
 const CompleteAdminPanel = lazy(() => import('./pages/admin/CompleteAdminPanel'));
-const AnalyticsDashboard = lazy(() => import('./pages/admin/AnalyticsDashboard'));
 
-// Lazy Load Common Pages
-const UserProfile = lazy(() => import('./pages/common/UserProfile'));
-
-// Role-based Dashboard Router
+// ─── Common ───────────────────────────────────────────────────────
+const UserProfile         = lazy(() => import('./pages/common/UserProfile'));
 const RoleDashboardRouter = lazy(() => import('./components/common/RoleDashboardRouter'));
+
+const Protected = ({ children, roles }) => (
+  <ProtectedRoute allowedRoles={roles}>{children}</ProtectedRoute>
+);
+
+const ALL_ROLES    = ['PUBLIC', 'USER', 'ADMIN', 'BROKER', 'LAWYER'];
+const BROKER_ROLES = ['BROKER', 'ADMIN'];
+const LAWYER_ROLES = ['LAWYER', 'ADMIN'];
+const ADMIN_ROLES  = ['ADMIN'];
 
 function App() {
   return (
@@ -83,84 +82,138 @@ function App() {
             <Navbar />
             <Suspense fallback={<LoadingSpinner />}>
               <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<ModernHome />} />
-                <Route path="/auth" element={<CombinedAuthPage />} />
-                <Route path="/login" element={<CombinedAuthPage />} />
-                <Route path="/register" element={<CombinedAuthPage />} />
-                <Route path="/property/:id" element={<PropertyDetail />} />
 
-                {/* Modern/Enhanced Public Routes */}
-                <Route path="/modern" element={<ModernHome />} />
-                <Route path="/glass-cards" element={<GlassPropertyCards />} />
-                <Route path="/3d-property/:id" element={<Property3DDetail />} />
-                <Route path="/3d-viewer" element={<Property3DViewer />} />
-                <Route path="/compare" element={<PropertyComparison />} />
-                <Route path="/video-hero" element={<VideoHeroLanding />} />
-                <Route path="/map" element={<InteractivePropertyMap />} />
-                <Route path="/virtual-tour" element={<VirtualTour360 />} />
-                <Route path="/ai-search" element={<AIPropertySearch />} />
+                {/* ── Admin wildcard routes ─────────────────────── */}
+                <Route path="/admin/*" element={<AdminRoutes />} />
 
-                {/* Lawyer Public Routes */}
-                <Route path="/lawyers" element={<LawyerDirectory />} />
-                <Route path="/lawyer/:id" element={<LawyerProfile />} />
+                {/* ══ PUBLIC ROUTES ════════════════════════════════ */}
+                <Route path="/"           element={<ModernHome />} />
+                <Route path="/auth"       element={<CombinedAuthPage />} />
+                <Route path="/login"      element={<CombinedAuthPage />} />
+                <Route path="/register"   element={<CombinedAuthPage />} />
+                <Route path="/modern"     element={<ModernHome />} />
+
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+                {/* Property routes */}
+                <Route path="/property/:id"   element={<PropertyDetail />} />
+                <Route path="/properties/:id" element={<PropertyDetail />} />
+                <Route path="/properties"     element={<GlassPropertyCards />} />
+                <Route path="/glass-cards"    element={<GlassPropertyCards />} />
+                <Route path="/ai-search"      element={<AIPropertySearch />} />
+
+                {/* Other public pages */}
+                <Route path="/3d-property/:id"  element={<Property3DDetail />} />
+                <Route path="/video-hero"       element={<VideoHeroLanding />} />
+                <Route path="/map"              element={<InteractivePropertyMap />} />
+                <Route path="/virtual-tour"     element={<VirtualTour360 />} />
+                <Route path="/virtual-tour/:id" element={<VirtualTour360 />} />
+                <Route path="/compare"          element={<PropertyComparisonEnhanced />} />
+
+                {/* Land */}
+                <Route path="/land-requirement" element={<LandRequirement />} />
+                <Route path="/land-listings"    element={<LandListings />} />
+
+                {/* Lawyers */}
+                <Route path="/lawyers"           element={<LawyerDirectory />} />
+                <Route path="/lawyer/:id"        element={<LawyerProfile />} />
                 <Route path="/book-consultation" element={<BookConsultation />} />
 
-                {/* Land Routes */}
-                <Route path="/land-requirement" element={<LandRequirement />} />
-                <Route path="/land-listings" element={<LandListings />} />
+                {/* ══ ROLE DASHBOARD ═══════════════════════════════ */}
+                <Route path="/dashboard" element={
+                  <Protected roles={ALL_ROLES}><RoleDashboardRouter /></Protected>} />
 
-                {/* Role-based Dashboard */}
-                <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['PUBLIC', 'ADMIN', 'BROKER', 'LAWYER']}><RoleDashboardRouter /></ProtectedRoute>} />
+                {/* ══ PUBLIC USER ROUTES ═══════════════════════════ */}
+                <Route path="/public/dashboard" element={
+                  <Protected roles={['PUBLIC', 'USER']}><PublicUserDashboard /></Protected>} />
 
-                {/* Public User Routes */}
-                <Route path="/public/dashboard" element={<ProtectedRoute allowedRoles={['PUBLIC']}><PublicUserDashboard /></ProtectedRoute>} />
-                <Route path="/account/settings" element={<ProtectedRoute allowedRoles={['PUBLIC']}><PublicAccountSettings /></ProtectedRoute>} />
-                <Route path="/wishlist" element={<ProtectedRoute allowedRoles={['PUBLIC', 'ADMIN', 'BROKER', 'LAWYER']}><PropertyWishlist /></ProtectedRoute>} />
-                <Route path="/schedule-tour" element={<ProtectedRoute allowedRoles={['PUBLIC', 'ADMIN', 'BROKER', 'LAWYER']}><PropertyTourScheduler /></ProtectedRoute>} />
-                <Route path="/calculators" element={<ProtectedRoute allowedRoles={['PUBLIC', 'ADMIN', 'BROKER', 'LAWYER']}><PropertyCalculatorSuite /></ProtectedRoute>} />
+                <Route path="/account/settings" element={
+                  <Protected roles={['PUBLIC', 'USER']}><PublicAccountSettings /></Protected>} />
 
-                {/* Broker Routes */}
-                <Route path="/broker/dashboard" element={<ProtectedRoute allowedRoles={['BROKER', 'ADMIN']}><BrokerDashboard /></ProtectedRoute>} />
-                <Route path="/broker/properties" element={<ProtectedRoute allowedRoles={['BROKER', 'ADMIN']}><BrokerProperties /></ProtectedRoute>} />
-                <Route path="/broker/properties/add" element={<ProtectedRoute allowedRoles={['BROKER', 'ADMIN']}><AddProperty /></ProtectedRoute>} />
-                <Route path="/broker/enquiries" element={<ProtectedRoute allowedRoles={['BROKER', 'ADMIN']}><BrokerEnquiries /></ProtectedRoute>} />
-                <Route path="/broker/legal/request" element={<ProtectedRoute allowedRoles={['BROKER', 'ADMIN']}><RequestLegalService /></ProtectedRoute>} />
-                <Route path="/interactive-dashboard" element={<ProtectedRoute allowedRoles={['BROKER', 'ADMIN']}><InteractiveBrokerDashboard /></ProtectedRoute>} />
+                <Route path="/wishlist" element={
+                  <Protected roles={ALL_ROLES}><PropertyWishlist /></Protected>} />
 
-                {/* Lawyer Routes */}
-                <Route path="/lawyer/dashboard" element={<ProtectedRoute allowedRoles={['LAWYER', 'ADMIN']}><LawyerDashboard /></ProtectedRoute>} />
-                <Route path="/lawyer/settings" element={<ProtectedRoute allowedRoles={['LAWYER', 'ADMIN']}><LawyerAccountSettings /></ProtectedRoute>} />
-                <Route path="/lawyer/dashboard-complete" element={<ProtectedRoute allowedRoles={['LAWYER', 'ADMIN']}><LawyerDashboardComplete /></ProtectedRoute>} />
+                <Route path="/schedule-tour" element={
+                  <Protected roles={ALL_ROLES}><PropertyTourScheduler /></Protected>} />
 
-                {/* Admin Routes */}
-                <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/animated-stats" element={<ProtectedRoute allowedRoles={['ADMIN']}><AnimatedStatsDashboard /></ProtectedRoute>} />
-                <Route path="/admin/panel" element={<ProtectedRoute allowedRoles={['ADMIN']}><CompleteAdminPanel /></ProtectedRoute>} />
-                <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={['ADMIN']}><AnalyticsDashboard /></ProtectedRoute>} />
-                <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><CompleteAdminPanel /></ProtectedRoute>} />
-                <Route path="/admin/users/add" element={<ProtectedRoute allowedRoles={['ADMIN']}><CompleteAdminPanel /></ProtectedRoute>} />
-                <Route path="/admin/properties" element={<ProtectedRoute allowedRoles={['ADMIN']}><CompleteAdminPanel /></ProtectedRoute>} />
-                <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['ADMIN']}><AnalyticsDashboard /></ProtectedRoute>} />
+                <Route path="/calculators" element={
+                  <Protected roles={ALL_ROLES}><PropertyCalculatorSuite /></Protected>} />
 
-                {/* Common Protected Routes */}
-                <Route path="/profile" element={<ProtectedRoute allowedRoles={['BROKER']}><UserProfile /></ProtectedRoute>} />
+                {/* ══ BROKER ROUTES ════════════════════════════════ */}
+                <Route path="/broker/dashboard" element={
+                  <Protected roles={BROKER_ROLES}><BrokerDashboard /></Protected>} />
 
-                {/* 404 Page */}
+                <Route path="/broker/properties" element={
+                  <Protected roles={BROKER_ROLES}><BrokerProperties /></Protected>} />
+
+                <Route path="/broker/add-property" element={
+                  <Protected roles={BROKER_ROLES}><AddProperty /></Protected>} />
+                <Route path="/broker/properties/add" element={
+                  <Protected roles={BROKER_ROLES}><AddProperty /></Protected>} />
+
+                <Route path="/broker/edit-property/:id" element={
+                  <Protected roles={BROKER_ROLES}><AddProperty /></Protected>} />
+                <Route path="/broker/properties/edit/:id" element={
+                  <Protected roles={BROKER_ROLES}><AddProperty /></Protected>} />
+
+                <Route path="/broker/enquiries" element={
+                  <Protected roles={BROKER_ROLES}><BrokerEnquiries /></Protected>} />
+
+                <Route path="/broker/legal/request" element={
+                  <Protected roles={BROKER_ROLES}><RequestLegalService /></Protected>} />
+
+                <Route path="/broker/profile" element={
+                  <Protected roles={BROKER_ROLES}><BrokerProfile /></Protected>} />
+
+                <Route path="/interactive-dashboard" element={
+                  <Protected roles={BROKER_ROLES}><InteractiveBrokerDashboard /></Protected>} />
+
+                {/* ══ LAWYER ROUTES ════════════════════════════════ */}
+                <Route path="/lawyer/dashboard" element={
+                  <Protected roles={LAWYER_ROLES}><LawyerDashboard /></Protected>} />
+
+                <Route path="/lawyer/settings" element={
+                  <Protected roles={LAWYER_ROLES}><LawyerDashboard /></Protected>} />
+
+                <Route path="/lawyer/requests" element={
+                  <Protected roles={LAWYER_ROLES}><LawyerRequests /></Protected>} />
+
+                <Route path="/lawyer/services" element={
+                  <Protected roles={LAWYER_ROLES}><LawyerServices /></Protected>} />
+
+                {/* ══ ADMIN ROUTES ═════════════════════════════════ */}
+                <Route path="/admin/dashboard"  element={<Protected roles={ADMIN_ROLES}><AdminDashboard /></Protected>} />
+                <Route path="/admin/panel"      element={<Protected roles={ADMIN_ROLES}><CompleteAdminPanel /></Protected>} />
+                <Route path="/admin/analytics"  element={<Protected roles={ADMIN_ROLES}><CompleteAdminPanel /></Protected>} />
+                <Route path="/admin/reports"    element={<Protected roles={ADMIN_ROLES}><CompleteAdminPanel /></Protected>} />
+                <Route path="/admin/users"      element={<Protected roles={ADMIN_ROLES}><CompleteAdminPanel /></Protected>} />
+                <Route path="/admin/users/add"  element={<Protected roles={ADMIN_ROLES}><CompleteAdminPanel /></Protected>} />
+                <Route path="/admin/properties" element={<Protected roles={ADMIN_ROLES}><CompleteAdminPanel /></Protected>} />
+                <Route path="/animated-stats"   element={<Protected roles={ADMIN_ROLES}><CompleteAdminPanel /></Protected>} />
+
+                {/* Common */}
+                <Route path="/profile" element={
+                  <Protected roles={BROKER_ROLES}><UserProfile /></Protected>} />
+
+                {/* 404 */}
                 <Route path="*" element={
                   <div className="flex items-center justify-center min-h-screen">
                     <div className="text-center">
                       <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
-                      <p className="text-xl text-gray-600 mb-4">Page Not Found</p>
-                      <Link to="/" className="text-blue-600 hover:underline">Go to Home</Link>
+                      <p className="text-xl text-gray-500 mb-6">Page not found</p>
+                      <Link to="/" className="text-orange-600 hover:underline font-semibold">← Go Home</Link>
                     </div>
-                  </div>
-                } />
+                  </div>} />
+
               </Routes>
             </Suspense>
 
-            {/* ✅ Global Chat - RudraAIChatBot (replaces old LiveChatWidget) */}
-            <RudraAIChatBot />
+            {/* ✅ Single unified chat — AI + Broker + Lawyer */}
+            <UnifiedChatWidget />
+
+            {/* ✅ Social Media Sidebar — Instagram, Facebook, WhatsApp */}
+            <SocialSidebar />
+
           </div>
         </AuthProvider>
       </LanguageProvider>

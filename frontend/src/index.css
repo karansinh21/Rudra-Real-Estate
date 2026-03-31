@@ -1,3 +1,6 @@
+/* ─── Responsive — MUST BE FIRST ─── */
+@import './responsive.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

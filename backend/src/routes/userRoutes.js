@@ -5,13 +5,20 @@ const {
   getAllUsers,
   getPendingUsers,
   getUserById,
+  getLawyerProfile,   // ✅ NEW
   approveUser,
   rejectUser,
   updateUser,
   deleteUser
 } = require('../controllers/userController');
 
-// ✅ Badha routes Admin only che
+// ✅ PUBLIC - No auth needed (LawyerDirectory + LawyerProfile pages mate)
+// GET /api/users/lawyer-profile        → single lawyer (directory page)
+// GET /api/users/lawyer-profile/:id    → by ID (profile page)
+router.get('/lawyer-profile', getLawyerProfile);
+router.get('/lawyer-profile/:id', getLawyerProfile);
+
+// ✅ Badha baaki routes Admin only che
 
 // GET /api/users - Badha users
 router.get('/', protect, isAdmin, getAllUsers);

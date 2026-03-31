@@ -1,26 +1,31 @@
+// frontend/src/pages/lawyer/LawyerRoutes.jsx
+// REPLACE your existing LawyerRoutes.jsx with this
+//
+// CHANGES:
+//   - Removed /services and /requests separate routes
+//     (LawyerDashboard now handles both internally via sidebar)
+//   - Kept /settings route pointing to LawyerAccountSettings
+//   - All unknown paths redirect to dashboard
+
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LawyerDashboard from './LawyerDashboard';
-import LawyerDashboardComplete from './LawyerDashboardComplete';
 import LawyerAccountSettings from './LawyerAccountSettings';
 
 const LawyerRoutes = () => {
   return (
     <Routes>
-      {/* Default route - redirects to main dashboard */}
-      <Route path="/" element={<Navigate to="/lawyer/dashboard" replace />} />
-      
-      {/* Main Dashboard - Simple version with request management */}
+      {/* Default → dashboard */}
+      <Route path="/"          element={<Navigate to="/lawyer/dashboard" replace />} />
+
+      {/* Main dashboard — includes Requests & Services as internal views */}
       <Route path="/dashboard" element={<LawyerDashboard />} />
-      
-      {/* Complete Dashboard - Enhanced version with appointments and analytics */}
-      <Route path="/dashboard-complete" element={<LawyerDashboardComplete />} />
-      
-      {/* Account Settings */}
-      <Route path="/settings" element={<LawyerAccountSettings />} />
-      
-      {/* Catch all - redirect to dashboard */}
-      <Route path="*" element={<Navigate to="/lawyer/dashboard" replace />} />
+
+      {/* Account settings (separate page — heavier form, ok to keep) */}
+      <Route path="/settings"  element={<LawyerAccountSettings />} />
+
+      {/* Catch-all */}
+      <Route path="*"          element={<Navigate to="/lawyer/dashboard" replace />} />
     </Routes>
   );
 };

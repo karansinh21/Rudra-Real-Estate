@@ -8,7 +8,6 @@ datasource db {
 }
 
 // ============= UNIFIED USER MODEL =============
-// One model for all users: PUBLIC, BROKER, LAWYER, ADMIN
 model User {
   id                  String         @id @default(uuid())
   name                String
@@ -22,23 +21,24 @@ model User {
   status              UserStatus     @default(ACTIVE)
   isVerified          Boolean        @default(false)
   
-  // 🆕 Social Login Fields
   googleId            String?        @unique
   appleId             String?        @unique
   avatar              String?
   loginMethod         LoginMethod    @default(EMAIL)
   
-  // Professional details (for BROKER and LAWYER only)
-  professionalDetails Json?          // { licenseNumber, experience, specialization, etc }
+  professionalDetails Json?
   
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   
-  // Relations (only for respective roles)
-  properties          Property[]     // For BROKER
-  enquiries           Enquiry[]      // For BROKER
-  legalRequests       LegalRequest[] // For BROKER
-  legalServices       LegalService[] // For LAWYER
+  properties          Property[]
+  enquiries           Enquiry[]
+  legalRequests       LegalRequest[]
+  legalServices       LegalService[]
+  wishlists           Wishlist[]
+
+  assignedChats ChatSession[] @relation("AssignedChats")
+  userChats     ChatSession[] @relation("UserChats")
 
   @@map("users")
 }
@@ -57,22 +57,25 @@ model Property {
   address     String
   city        String
   state       String
-  pincode     String
+  pincode     String          @default("")
   features    String[]
   status      String          @default("AVAILABLE")
-  
-  // Location coordinates
   latitude    Float?
   longitude   Float?
-  
-  // Images
   images      Json?           @default("[]")
-  
-  // Relations
+
+  areaUnit       String?  @default("sqft")
+  soilType       String?
+  waterSource    String?
+  roadAccess     String?
+  naPermission   Boolean  @default(false)
+  clearTitle     Boolean  @default(false)
+  approvedLayout Boolean  @default(false)
+
   brokerId    String
   broker      User            @relation(fields: [brokerId], references: [id], onDelete: Cascade)
   enquiries   Enquiry[]
-  
+  wishlists   Wishlist[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -92,8 +95,6 @@ model Enquiry {
   brokerId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  // Relations
   broker      User     @relation(fields: [brokerId], references: [id], onDelete: Cascade)
   property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
@@ -108,11 +109,10 @@ model LegalService {
   name        String
   description String
   price       Float
+  category    String   @default("property")
   lawyerId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  // Relations
   lawyer      User     @relation(fields: [lawyerId], references: [id], onDelete: Cascade)
 
   @@index([lawyerId])
@@ -131,8 +131,6 @@ model LegalRequest {
   status          String   @default("PENDING")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
-  // Relations
   broker          User     @relation(fields: [brokerId], references: [id], onDelete: Cascade)
 
   @@index([brokerId])
@@ -165,28 +163,85 @@ model LandRequirement {
   @@map("land_requirements")
 }
 
+// ============= WISHLIST MODEL =============
+model Wishlist {
+  id         String   @id @default(uuid())
+  userId     String
+  propertyId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId],     references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])
+  @@index([userId])
+  @@map("wishlists")
+}
+
+// ============= CHAT SESSION MODEL =============
+model ChatSession {
+  id         String   @id @default(uuid())
+  userId     String?
+  userName   String
+  userEmail  String?
+  userPhone  String?
+  status     String   @default("ACTIVE")  // ACTIVE, CLOSED
+  assignedTo String?
+
+  // ✅ NEW — koni sathe chat che: ADMIN | BROKER | LAWYER
+  sessionType String @default("ADMIN")
+
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  messages   ChatMessage[]
+  assignee   User?         @relation("AssignedChats", fields: [assignedTo], references: [id])
+  user       User?         @relation("UserChats",     fields: [userId],     references: [id])
+
+  @@index([userId])
+  @@index([assignedTo])
+  @@index([sessionType])  // ✅ NEW index for filtering
+  @@map("chat_sessions")
+}
+
+// ============= CHAT MESSAGE MODEL =============
+model ChatMessage {
+  id         String   @id @default(uuid())
+  sessionId  String
+  senderId   String?
+  senderName String
+  senderRole String   @default("USER")  // USER | BOT | ADMIN | BROKER | LAWYER
+  text       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("chat_messages")
+}
+
 // ============= ENUMS =============
 enum UserRole {
-  PUBLIC   // Normal users (property seekers)
-  BROKER   // Property brokers/agents
-  LAWYER   // Legal professionals
-  ADMIN    // System administrators
+  PUBLIC
+  BROKER
+  LAWYER
+  ADMIN
 }
 
 enum UserStatus {
-  ACTIVE    // Account is active and can login
-  PENDING   // Waiting for admin approval (for BROKER/LAWYER)
-  REJECTED  // Application rejected
-  BLOCKED   // Account blocked by admin
+  ACTIVE
+  PENDING
+  REJECTED
+  BLOCKED
 }
 
-// 🆕 Login Method Enum
 enum LoginMethod {
-  EMAIL      // Traditional email/password
-  GOOGLE     // Google OAuth
-  APPLE      // Apple ID
-  WHATSAPP   // WhatsApp OTP
-  PHONE      // Phone SMS OTP
+  EMAIL
+  GOOGLE
+  APPLE
+  WHATSAPP
+  PHONE
 }
 
 enum PropertyType {

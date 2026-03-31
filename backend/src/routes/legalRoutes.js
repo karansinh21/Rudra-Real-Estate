@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate, isLawyer } = require('../middleware/auth');
 const {
   // Legal Services
   getAllLegalServices,
@@ -23,13 +23,17 @@ const {
 router.get('/services', getAllLegalServices);
 router.get('/services/:id', getLegalServiceById);
 
-// Protected routes (Lawyer/User)
-router.post('/services', authenticate, createLegalService);
-router.put('/services/:id', authenticate, updateLegalService);
-router.delete('/services/:id', authenticate, deleteLegalService);
+// ✅ FIX: isLawyer middleware ઉમેર્યો - Lawyer role check
+router.post('/services', authenticate, isLawyer, createLegalService);
+router.put('/services/:id', authenticate, isLawyer, updateLegalService);
+router.delete('/services/:id', authenticate, isLawyer, deleteLegalService);
 
 // ==================== LEGAL REQUESTS ROUTES ====================
-// Protected routes (Broker)
+// ✅ FIX: GET /requests અને PUT /requests/:id ઉમેર્યા
+router.get('/requests', authenticate, getAllLegalRequests);
+router.put('/requests/:id', authenticate, updateLegalRequestStatus);
+
+// Original routes
 router.post('/requests', authenticate, createLegalRequest);
 router.get('/requests/my-requests', authenticate, getMyLegalRequests);
 router.get('/requests/all', authenticate, getAllLegalRequests);

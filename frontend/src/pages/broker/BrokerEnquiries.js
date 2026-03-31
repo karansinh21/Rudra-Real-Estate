@@ -1,218 +1,261 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Mail, MessageSquare, CheckCircle, ArrowLeft, Filter, Building2, Calendar } from 'lucide-react';
+import {
+  Phone, Mail, MessageSquare, CheckCircle, Building2,
+  Search, AlertCircle, Loader2, X, RefreshCw
+} from 'lucide-react';
+import BrokerLayout from './BrokerLayout';
+
+const API   = 'http://localhost:5000/api';
+const token = () => localStorage.getItem('token');
+
+const DS = {
+  bg: '#F9F6F2', card: '#FFFFFF', border: '#EDE8E3',
+  primary: '#C84B00', primaryLight: '#FEF3EE', primaryBorder: 'rgba(200,75,0,0.18)',
+  text: '#1A0800', textSub: '#6B5748', textMuted: '#9C8B7A',
+};
+
+const STATUS_META = {
+  PENDING:   { label: 'Pending',   bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA' },
+  CONTACTED: { label: 'Contacted', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  CLOSED:    { label: 'Closed',    bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+  NEW:       { label: 'New',       bg: DS.primaryLight, color: DS.primary, border: DS.primaryBorder },
+};
 
 const BrokerEnquiries = () => {
   const [enquiries, setEnquiries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
+  const [filtered,  setFiltered]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState('');
+  const [filter,    setFilter]    = useState('');
+  const [search,    setSearch]    = useState('');
+  const [updating,  setUpdating]  = useState(null);
 
+  useEffect(() => { fetchEnquiries(); }, []);
   useEffect(() => {
-    fetchEnquiries();
-  }, [filter]);
+    let result = [...enquiries];
+    if (filter)        result = result.filter(e => e.status === filter);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(e =>
+        e.clientName?.toLowerCase().includes(q) ||
+        e.clientPhone?.includes(q) ||
+        e.clientEmail?.toLowerCase().includes(q) ||
+        e.property?.title?.toLowerCase().includes(q)
+      );
+    }
+    setFiltered(result);
+  }, [enquiries, filter, search]);
 
   const fetchEnquiries = async () => {
+    setLoading(true); setError('');
     try {
-      const token = localStorage.getItem('token');
-      const params = filter ? `?status=${filter}` : '';
-      const response = await fetch(`http://localhost:5000/api/enquiries${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await response.json();
+      const res  = await fetch(`${API}/brokers/me/enquiries`, { headers: { Authorization: `Bearer ${token()}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
       setEnquiries(data.enquiries || []);
-    } catch (error) {
-      console.error('Error fetching enquiries:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
   const updateStatus = async (id, newStatus) => {
+    setUpdating(id);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/enquiries/${id}/status`, {
+      const res = await fetch(`${API}/enquiries/${id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ status: newStatus })
       });
-
-      if (response.ok) {
-        fetchEnquiries();
-      } else {
-        alert('Failed to update status');
-      }
-    } catch (error) {
-      console.error('Error updating status:', error);
-      alert('Failed to update status');
-    }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Update failed'); }
+      setEnquiries(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+    } catch (err) { setError(err.message); }
+    finally { setUpdating(null); }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'NEW':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'CONTACTED':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'CLOSED':
-        return 'bg-green-100 text-green-800 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+  const counts = {
+    all:       enquiries.length,
+    PENDING:   enquiries.filter(e => e.status === 'PENDING').length,
+    CONTACTED: enquiries.filter(e => e.status === 'CONTACTED').length,
+    CLOSED:    enquiries.filter(e => e.status === 'CLOSED').length,
+    NEW:       enquiries.filter(e => e.status === 'NEW').length,
   };
 
-  const navigateTo = (path) => {
-    window.location.href = path;
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading enquiries...</p>
-        </div>
-      </div>
-    );
-  }
+  const tabs = [
+    { value: '',          label: 'All',       count: counts.all       },
+    { value: 'PENDING',   label: 'Pending',   count: counts.PENDING   },
+    { value: 'NEW',       label: 'New',       count: counts.NEW       },
+    { value: 'CONTACTED', label: 'Contacted', count: counts.CONTACTED },
+    { value: 'CLOSED',    label: 'Closed',    count: counts.CLOSED    },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <button
-          onClick={() => navigateTo('/broker/dashboard')}
-          className="mb-6 flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          <span>Back to Dashboard</span>
-        </button>
+    <BrokerLayout>
+      <div style={{ background: DS.bg, fontFamily: 'DM Sans, sans-serif' }}
+        className="px-6 lg:px-10 py-8 max-w-5xl mx-auto min-h-screen">
 
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-3">
-            <MessageSquare className="h-8 w-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Enquiries ({enquiries.length})</h1>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 style={{ color: DS.text, fontFamily: 'Georgia, serif' }} className="text-2xl font-bold">Enquiries</h1>
+            <p style={{ color: DS.textMuted }} className="text-sm mt-0.5">{filtered.length} of {enquiries.length} total</p>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <Filter className="h-5 w-5 text-gray-500" />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-            >
-              <option value="">All Status</option>
-              <option value="NEW">New</option>
-              <option value="CONTACTED">Contacted</option>
-              <option value="CLOSED">Closed</option>
-            </select>
-          </div>
+          <button onClick={fetchEnquiries}
+            style={{ background: DS.card, borderColor: DS.border, color: DS.textSub }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm transition-all hover:opacity-70">
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
         </div>
 
-        {enquiries.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-            <MessageSquare className="h-24 w-24 text-gray-300 mx-auto mb-6" />
-            <h3 className="text-2xl font-bold text-gray-900 mb-3">No Enquiries Found</h3>
-            <p className="text-gray-500 text-lg">
-              {filter ? `No ${filter.toLowerCase()} enquiries at the moment` : 'You have no enquiries yet'}
+        {/* Filter Tabs */}
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+          {tabs.map(tab => (
+            <button key={tab.value} onClick={() => setFilter(tab.value)}
+              style={filter === tab.value
+                ? { background: DS.primary, borderColor: DS.primary, color: '#fff' }
+                : { background: DS.card, borderColor: DS.border, color: DS.textSub }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap border transition-all">
+              {tab.label}
+              <span className="text-xs px-1.5 py-0.5 rounded-full font-bold"
+                style={filter === tab.value
+                  ? { background: 'rgba(255,255,255,0.2)' }
+                  : { background: DS.bg, color: DS.textMuted }}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-5">
+          <Search style={{ color: DS.textMuted }} className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, phone, email, property..."
+            style={{ background: DS.card, borderColor: DS.border, color: DS.text }}
+            className="w-full border rounded-xl pl-10 pr-4 py-2.5 placeholder-stone-400 text-sm focus:outline-none transition-all" />
+          {search && (
+            <button onClick={() => setSearch('')}
+              style={{ color: DS.textMuted }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div style={{ background: DS.primaryLight, borderColor: DS.primaryBorder, color: DS.primary }}
+            className="flex items-center gap-2 border px-4 py-3 rounded-xl text-sm mb-5">
+            <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+            <button onClick={() => setError('')} className="ml-auto"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
+        {/* Content */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <Loader2 style={{ color: DS.primary }} className="w-8 h-8 animate-spin mb-3" />
+            <p style={{ color: DS.textMuted }} className="text-sm">Loading enquiries...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ background: DS.card, borderColor: DS.border }}
+            className="rounded-2xl border p-16 text-center">
+            <div style={{ background: DS.primaryLight, borderColor: DS.primaryBorder }}
+              className="w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto mb-4">
+              <MessageSquare style={{ color: DS.primary }} className="w-8 h-8" />
+            </div>
+            <p style={{ color: DS.text }} className="font-semibold mb-1">
+              {filter || search ? 'Koi match nathi' : 'Haju koi enquiry nathi'}
+            </p>
+            <p style={{ color: DS.textMuted }} className="text-sm">
+              {filter || search ? 'Filter change karo' : 'Property list thai jay etle yahan dikhashe'}
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {enquiries.map((enquiry) => (
-              <div key={enquiry.id} className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <h3 className="text-xl font-bold text-gray-900">{enquiry.clientName}</h3>
-                      <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(enquiry.status)}`}>
-                        {enquiry.status}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 text-gray-600 mb-3">
-                      <Building2 className="h-4 w-4" />
-                      <span className="font-semibold">Property:</span>
-                      <span>{enquiry.property?.title || 'N/A'}</span>
+          <div className="space-y-3">
+            {filtered.map((enq) => {
+              const sm = STATUS_META[enq.status] || STATUS_META.NEW;
+              const isUpdating = updating === enq.id;
+              return (
+                <div key={enq.id} style={{ background: DS.card, borderColor: DS.border }}
+                  className="rounded-2xl border overflow-hidden hover:shadow-md transition-all duration-200">
+                  <div className="px-5 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div style={{ background: DS.primaryLight, borderColor: DS.primaryBorder }}
+                          className="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0">
+                          <span style={{ color: DS.primary }} className="font-bold text-sm">
+                            {enq.clientName?.[0]?.toUpperCase() || '?'}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 style={{ color: DS.text }} className="font-bold text-sm">{enq.clientName}</h3>
+                            <span style={{ background: sm.bg, color: sm.color, borderColor: sm.border }}
+                              className="text-[11px] font-bold px-2 py-0.5 rounded-full border">{sm.label}</span>
+                          </div>
+                          <div style={{ color: DS.textMuted }} className="flex items-center gap-1 text-xs mt-0.5">
+                            <Building2 className="w-3 h-3" />
+                            <span className="truncate">{enq.property?.title || 'Property'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p style={{ color: DS.textMuted }} className="text-xs shrink-0">
+                        {new Date(enq.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                      <div className="flex items-center text-gray-700">
-                        <Phone className="h-4 w-4 mr-2 text-blue-600" />
-                        <a href={`tel:${enquiry.clientPhone}`} className="hover:underline hover:text-blue-600">
-                          {enquiry.clientPhone}
-                        </a>
-                      </div>
-                      
-                      <div className="flex items-center text-gray-700">
-                        <Mail className="h-4 w-4 mr-2 text-blue-600" />
-                        <a href={`mailto:${enquiry.clientEmail}`} className="hover:underline hover:text-blue-600">
-                          {enquiry.clientEmail}
-                        </a>
-                      </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3">
+                      <a href={`tel:${enq.clientPhone}`} style={{ color: DS.primary }}
+                        className="flex items-center gap-1.5 text-xs font-medium hover:underline transition-colors">
+                        <Phone className="w-3.5 h-3.5" /> {enq.clientPhone}
+                      </a>
+                      <a href={`mailto:${enq.clientEmail}`} style={{ color: DS.textSub }}
+                        className="flex items-center gap-1.5 text-xs hover:opacity-70 transition-colors">
+                        <Mail className="w-3.5 h-3.5" /> {enq.clientEmail}
+                      </a>
                     </div>
 
-                    {enquiry.message && (
-                      <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                        <div className="flex items-start">
-                          <MessageSquare className="h-5 w-5 text-gray-600 mr-2 mt-0.5 flex-shrink-0" />
-                          <p className="text-gray-700">{enquiry.message}</p>
+                    {enq.message && (
+                      <div style={{ background: DS.bg, borderColor: DS.border }}
+                        className="mt-3 border rounded-xl p-3">
+                        <div className="flex items-start gap-2">
+                          <MessageSquare style={{ color: DS.textMuted }} className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                          <p style={{ color: DS.textSub }} className="text-xs leading-relaxed">{enq.message}</p>
                         </div>
                       </div>
                     )}
+                  </div>
 
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      <span>
-                        Received: {new Date(enquiry.createdAt).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                  <div style={{ background: DS.bg, borderColor: DS.border }}
+                    className="px-5 py-3 border-t flex items-center gap-2 flex-wrap">
+                    <span style={{ color: DS.textMuted }} className="text-xs font-medium mr-1">Update:</span>
+
+                    {enq.status !== 'CONTACTED' && enq.status !== 'CLOSED' && (
+                      <button onClick={() => updateStatus(enq.id, 'CONTACTED')} disabled={isUpdating}
+                        className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 disabled:opacity-50 transition-all">
+                        {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Phone className="w-3 h-3" />}
+                        Contacted
+                      </button>
+                    )}
+                    {enq.status !== 'CLOSED' && (
+                      <button onClick={() => updateStatus(enq.id, 'CLOSED')} disabled={isUpdating}
+                        className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition-all">
+                        {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                        Close
+                      </button>
+                    )}
+                    {enq.status === 'CLOSED' && (
+                      <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold">
+                        <CheckCircle className="w-3.5 h-3.5" /> Enquiry Closed
                       </span>
-                    </div>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center space-x-3 pt-4 border-t border-gray-200">
-                  <span className="text-sm text-gray-600 font-medium">Update Status:</span>
-                  
-                  {enquiry.status !== 'CONTACTED' && (
-                    <button
-                      onClick={() => updateStatus(enquiry.id, 'CONTACTED')}
-                      className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 text-sm font-semibold transition"
-                    >
-                      Mark as Contacted
-                    </button>
-                  )}
-                  
-                  {enquiry.status !== 'CLOSED' && (
-                    <button
-                      onClick={() => updateStatus(enquiry.id, 'CLOSED')}
-                      className="bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 text-sm font-semibold flex items-center transition"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Close Enquiry
-                    </button>
-                  )}
-
-                  {enquiry.status === 'CLOSED' && (
-                    <span className="text-green-600 text-sm font-medium flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Enquiry Closed
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
-    </div>
+    </BrokerLayout>
   );
 };
 

@@ -1,0 +1,176 @@
+/* ═══════════════════════════════════════════════════════════════
+   RUDRA REAL ESTATE — Global Responsive CSS
+   Import karo: src/index.css ma top par add karo:
+   @import './responsive.css';
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --sidebar-width: 240px;
+  --header-height: 60px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+img { max-width: 100%; height: auto; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { -webkit-overflow-scrolling: touch; }
+* { -webkit-tap-highlight-color: transparent; }
+table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ══════════════════════════════════════════════════════════════
+   TABLET  768px - 1024px
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+
+  main { padding: 20px !important; max-width: 100% !important; }
+
+  /* 3 col → 2 col */
+  [style*="repeat(3, 1fr)"],
+  [style*="1fr 1fr 1fr"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* 4 col → 2 col */
+  [style*="repeat(4, 1fr)"],
+  [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* stat cards auto-fill */
+  [style*="minmax(190px"] { grid-template-columns: repeat(2, 1fr) !important; }
+  [style*="minmax(180px"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* sidebar+content layout */
+  [style*="1fr 320px"] { grid-template-columns: 1fr !important; }
+  [style*="200px 1fr"] { grid-template-columns: 1fr !important; }
+
+  /* Tailwind grid */
+  .lg\:grid-cols-3 { grid-template-columns: repeat(2, 1fr) !important; }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .lg\:col-span-3  { grid-column: span 1 !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE  max 768px
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Page padding */
+  main { padding: 16px !important; max-width: 100% !important; }
+
+  /* ALL grids → 1 col */
+  [style*="display: grid"] { grid-template-columns: 1fr !important; }
+  [style*="display:grid"]  { grid-template-columns: 1fr !important; }
+
+  /* stat cards → 2 col on mobile */
+  [style*="minmax(190px"],
+  [style*="minmax(180px"],
+  [style*="minmax(160px"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Fixed sidebar — hide (mobile header menu use karo) */
+  aside[style*="position: fixed"],
+  aside[style*="position:fixed"] { display: none !important; }
+
+  /* Sidebar spacer div */
+  div[style*="width: 240"][style*="flexShrink"],
+  div[style*="width:240"][style*="flex-shrink"] { width: 0 !important; display: none !important; }
+
+  /* Hero banners */
+  [style*="28px 32px"] { padding: 20px 16px !important; }
+  [style*="padding: '28px"] { padding: 20px 16px !important; }
+
+  /* All flex rows wrap */
+  [style*="display: flex"] { flex-wrap: wrap !important; }
+  [style*="display:flex"]  { flex-wrap: wrap !important; }
+
+  /* Modal full screen */
+  [style*="maxWidth: 440"],
+  [style*="maxWidth:440"]  { max-width: calc(100vw - 32px) !important; margin: 0 16px !important; }
+
+  /* Font sizes reduce */
+  [style*="fontSize: 28"],  [style*="fontSize:28"]  { font-size: 22px !important; }
+  [style*="fontSize: 30"],  [style*="fontSize:30"]  { font-size: 24px !important; }
+  [style*="fontSize: 22"],  [style*="fontSize:22"]  { font-size: 18px !important; }
+
+  /* Image gallery height */
+  .h-80, .sm\:h-96 { height: 220px !important; }
+
+  /* Border radius reduce */
+  [style*="borderRadius: 20"], [style*="borderRadius:20"] { border-radius: 12px !important; }
+
+  /* Map height */
+  [style*="height: 300"] { height: 220px !important; }
+
+  /* Tailwind grid → 1 col */
+  .grid-cols-2 { grid-template-columns: 1fr !important; }
+  .grid-cols-3 { grid-template-columns: 1fr !important; }
+  .grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .lg\:grid-cols-3 { grid-template-columns: 1fr !important; }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .lg\:col-span-2  { grid-column: span 1 !important; }
+  .lg\:col-span-3  { grid-column: span 1 !important; }
+
+  /* Tailwind padding reduce */
+  .px-8, .px-10  { padding-left: 16px !important; padding-right: 16px !important; }
+  .py-8, .py-10  { padding-top: 20px !important; padding-bottom: 20px !important; }
+  .gap-6 { gap: 12px !important; }
+  .gap-8 { gap: 16px !important; }
+
+  /* Text */
+  .text-4xl { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  .text-3xl { font-size: 1.5rem !important; }
+  .text-2xl { font-size: 1.25rem !important; }
+
+  /* Navbar desktop links hide */
+  .hidden.lg\:flex { display: none !important; }
+
+  /* Mobile menu show */
+  .lg\:hidden { display: block !important; }
+
+  /* Overflow fix */
+  .overflow-x-auto { overflow-x: auto !important; }
+
+  /* Forms full width */
+  input[style*="width:"],
+  textarea[style*="width:"],
+  select[style*="width:"] { width: 100% !important; }
+
+  /* Chat panel full width */
+  [style*="width: 280"][style*="border-right"],
+  [style*="width:280"][style*="borderRight"] { width: 100% !important; max-width: 100% !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SMALL MOBILE  max 480px
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* Stat cards → 1 col */
+  [style*="minmax(190px"],
+  [style*="minmax(180px"],
+  [style*="minmax(160px"] { grid-template-columns: 1fr !important; }
+
+  .grid-cols-2 { grid-template-columns: 1fr !important; }
+  .grid-cols-4 { grid-template-columns: 1fr !important; }
+
+  /* Font */
+  h1 { font-size: 1.25rem !important; }
+  h2 { font-size: 1.1rem !important; }
+
+  /* Padding */
+  [style*="padding: 28"], [style*="padding:28"] { padding: 14px !important; }
+  [style*="padding: 20"], [style*="padding:20"] { padding: 12px !important; }
+
+  /* Map */
+  [style*="height: 300"] { height: 180px !important; }
+
+  /* Image gallery */
+  .h-80 { height: 180px !important; }
+
+  /* Button text */
+  button[style*="fontSize: 14"],
+  button[style*="fontSize:14"] { font-size: 13px !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PRINT
+   ══════════════════════════════════════════════════════════════ */
+@media print {
+  aside, nav, header { display: none !important; }
+  main { padding: 0 !important; width: 100% !important; }
+}

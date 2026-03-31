@@ -1,286 +1,224 @@
-import React, { useState } from 'react';
-import { Search, Star, MapPin, Phone, Mail, Award, Briefcase, CheckCircle, Filter, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { lawyerPublicAPI } from '../../services/api';
+import { useLanguage } from '../../utils/LanguageContext';
+import {
+  Search, Star, MapPin, Phone, Mail, Award, Briefcase,
+  CheckCircle, Calendar, Scale, AlertCircle, RefreshCw, ArrowUpRight, Sparkles
+} from 'lucide-react';
 
-const LawyerDirectory = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSpecialization, setSelectedSpecialization] = useState('all');
-  const [sortBy, setSortBy] = useState('rating');
+const DS = {
+  bg:'#F9F6F2', card:'#FFFFFF', border:'#EDE8E3',
+  primary:'#C84B00', primaryLight:'#FEF3EE', primaryBorder:'rgba(200,75,0,0.18)',
+  text:'#1A0800', textSub:'#6B5748', textMuted:'#9C8B7A',
+  serif:'Georgia, serif', sans:"'DM Sans', sans-serif",
+};
 
-  const lawyers = [
-    {
-      id: 1,
-      name: 'Adv. Rajesh Mehta',
-      specialization: 'Property Law',
-      experience: 15,
-      rating: 4.9,
-      reviews: 234,
-      location: 'Alkapuri, Vadodara',
-      phone: '+91 98765 43210',
-      email: 'rajesh.mehta@legal.com',
-      image: 'https://ui-avatars.com/api/?name=Rajesh+Mehta&background=3b82f6&color=fff&size=200',
-      languages: ['English', 'Hindi', 'Gujarati'],
-      expertise: ['Property Registration', 'Rent Agreement', 'Datavej', 'Property Disputes'],
-      availability: 'Available',
-      casesHandled: 500,
-      successRate: 95,
-      fees: '₹2000-5000',
-      verified: true
-    },
-    {
-      id: 2,
-      name: 'Adv. Priya Sharma',
-      specialization: 'Real Estate Law',
-      experience: 12,
-      rating: 4.8,
-      reviews: 189,
-      location: 'Race Course, Vadodara',
-      phone: '+91 98765 43211',
-      email: 'priya.sharma@legal.com',
-      image: 'https://ui-avatars.com/api/?name=Priya+Sharma&background=8b5cf6&color=fff&size=200',
-      languages: ['English', 'Hindi'],
-      expertise: ['Property Documentation', 'Legal Consultation', 'Title Verification', 'NOC'],
-      availability: 'Available',
-      casesHandled: 380,
-      successRate: 93,
-      fees: '₹1500-4000',
-      verified: true
-    },
-    {
-      id: 3,
-      name: 'Adv. Amit Patel',
-      specialization: 'Civil & Property Law',
-      experience: 18,
-      rating: 4.9,
-      reviews: 312,
-      location: 'Manjalpur, Vadodara',
-      phone: '+91 98765 43212',
-      email: 'amit.patel@legal.com',
-      image: 'https://ui-avatars.com/api/?name=Amit+Patel&background=10b981&color=fff&size=200',
-      languages: ['English', 'Hindi', 'Gujarati'],
-      expertise: ['Commercial Property', 'Lease Agreement', 'Property Tax', 'Legal Notice'],
-      availability: 'Busy',
-      casesHandled: 650,
-      successRate: 97,
-      fees: '₹3000-7000',
-      verified: true
-    },
-    {
-      id: 4,
-      name: 'Adv. Sneha Desai',
-      specialization: 'Property & Family Law',
-      experience: 10,
-      rating: 4.7,
-      reviews: 156,
-      location: 'Gotri, Vadodara',
-      phone: '+91 98765 43213',
-      email: 'sneha.desai@legal.com',
-      image: 'https://ui-avatars.com/api/?name=Sneha+Desai&background=f59e0b&color=fff&size=200',
-      languages: ['English', 'Hindi', 'Gujarati'],
-      expertise: ['Property Inheritance', 'Will & Testament', 'Gift Deed', 'Partition'],
-      availability: 'Available',
-      casesHandled: 280,
-      successRate: 91,
-      fees: '₹1800-4500',
-      verified: true
-    }
-  ];
+export default function LawyerDirectory() {
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+  const [lawyer,  setLawyer]  = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+  const [search,  setSearch]  = useState('');
+  const [visible, setVisible] = useState(false);
 
-  const specializations = ['all', 'Property Law', 'Real Estate Law', 'Civil & Property Law', 'Property & Family Law'];
+  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { if (!loading && lawyer) setTimeout(() => setVisible(true), 60); }, [loading, lawyer]);
 
-  const filteredLawyers = lawyers.filter(lawyer => {
-    const matchesSearch = lawyer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lawyer.expertise.some(exp => exp.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesSpec = selectedSpecialization === 'all' || lawyer.specialization === selectedSpecialization;
-    return matchesSearch && matchesSpec;
-  });
+  const fetchData = async () => {
+    setLoading(true); setError('');
+    try {
+      const res = await lawyerPublicAPI.getProfile();
+      const data = res.data?.lawyer || res.data;
+      if (!data) throw new Error('No data');
+      setLawyer(data);
+    } catch { setError(t('errorMsg')); }
+    finally { setLoading(false); }
+  };
+
+  const services = lawyer?.services || [];
+  const matches  = !search.trim() ||
+    [lawyer?.name, lawyer?.specialization, lawyer?.city, ...services.map(s=>s.serviceName)]
+      .some(v => v?.toLowerCase().includes(search.toLowerCase()));
+
+  if (loading) return (
+    <div style={{minHeight:'100vh',background:DS.bg,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:DS.sans}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{width:36,height:36,borderRadius:'50%',border:`2px solid ${DS.border}`,borderTopColor:DS.primary,animation:'sp .8s linear infinite',margin:'0 auto 10px'}}/>
+        <p style={{color:DS.textMuted,fontSize:13}}>{t('loading')}</p>
+      </div>
+      <style>{`@keyframes sp{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (error||!lawyer) return (
+    <div style={{minHeight:'100vh',background:DS.bg,display:'flex',alignItems:'center',justifyContent:'center',padding:16,fontFamily:DS.sans}}>
+      <div style={{background:DS.card,border:`1px solid ${DS.border}`,borderRadius:24,padding:40,textAlign:'center',maxWidth:380,boxShadow:'0 8px 32px rgba(26,8,0,0.06)',animation:'riseIn .5s ease both'}}>
+        <div style={{width:52,height:52,borderRadius:16,background:DS.primaryLight,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+          <AlertCircle size={22} color={DS.primary}/>
+        </div>
+        <h2 style={{fontFamily:DS.serif,fontSize:20,color:DS.text,marginBottom:8}}>{t('noResults')}</h2>
+        <p style={{color:DS.textMuted,fontSize:13,marginBottom:20}}>{error||t('errorMsg')}</p>
+        <button onClick={fetchData} style={{display:'inline-flex',alignItems:'center',gap:6,background:DS.primary,color:'#fff',border:'none',borderRadius:12,padding:'9px 18px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+          <RefreshCw size={13}/> {t('submit')}
+        </button>
+      </div>
+      <style>{`@keyframes sp{to{transform:rotate(360deg)}} @keyframes riseIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 py-12 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center space-x-2 bg-blue-500/20 backdrop-blur-xl rounded-full px-6 py-3 border border-blue-500/30 mb-6">
-            <Award className="h-5 w-5 text-blue-400" />
-            <span className="text-white font-semibold">Verified Legal Experts</span>
+    <div style={{minHeight:'100vh',background:DS.bg,fontFamily:DS.sans}}>
+      <style>{`
+        @keyframes sp      { to { transform:rotate(360deg) } }
+        @keyframes riseIn  { from { opacity:0; transform:translateY(22px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+        @keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        @keyframes shimmer { 0%{background-position:-300% center} 100%{background-position:300% center} }
+        .ld-shimmer { background:linear-gradient(90deg,#C84B00,#E8853A,#D4A853,#C84B00); background-size:300% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 4s linear infinite; }
+        .ld-btn:hover  { opacity:.85; transform:translateY(-2px)!important; box-shadow:0 10px 28px rgba(200,75,0,0.3)!important; }
+        .ld-card:hover { box-shadow:0 16px 48px rgba(200,75,0,0.10)!important; border-color:${DS.primaryBorder}!important; }
+        .ld-svc:hover  { border-color:${DS.primaryBorder}!important; background:${DS.primaryLight}!important; transform:translateY(-1px); }
+        .ld-stat:hover { border-color:${DS.primaryBorder}!important; transform:translateY(-2px); }
+      `}</style>
+
+      {/* Hero */}
+      <div style={{background:DS.card,borderBottom:`1px solid ${DS.border}`,position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-60,right:-40,width:280,height:280,borderRadius:'50%',pointerEvents:'none',background:'radial-gradient(circle,rgba(200,75,0,0.06) 0%,transparent 70%)',animation:'float 8s ease-in-out infinite'}}/>
+        <div style={{position:'absolute',inset:0,pointerEvents:'none',backgroundImage:'linear-gradient(rgba(200,75,0,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(200,75,0,0.025) 1px,transparent 1px)',backgroundSize:'56px 56px'}}/>
+        <div style={{maxWidth:900,margin:'0 auto',padding:'56px 20px 44px',textAlign:'center',position:'relative'}}>
+          <div style={{display:'inline-flex',alignItems:'center',gap:8,background:DS.primaryLight,border:`1px solid ${DS.primaryBorder}`,borderRadius:999,padding:'5px 16px',marginBottom:16,opacity:visible?1:0,transform:visible?'translateY(0)':'translateY(12px)',transition:'opacity .5s ease .05s, transform .5s ease .05s'}}>
+            <Sparkles size={12} color={DS.primary}/>
+            <span style={{color:DS.primary,fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>{t('verifiedBrokers')} {t('legalSupport')}</span>
           </div>
-          
-          <h1 className="text-5xl font-bold text-white mb-4">
-            Find Expert Lawyers
+          <h1 style={{fontFamily:DS.serif,fontSize:'clamp(2rem,5vw,2.8rem)',fontWeight:700,lineHeight:1.2,marginBottom:10,opacity:visible?1:0,transform:visible?'translateY(0)':'translateY(14px)',transition:'opacity .5s ease .12s, transform .5s ease .12s'}}>
+            <span className="ld-shimmer">{t('findLawyer')}</span>
           </h1>
-          <p className="text-xl text-gray-300">
-            Connect with experienced property lawyers in Vadodara
+          <p style={{color:DS.textMuted,fontSize:14,maxWidth:340,margin:'0 auto',opacity:visible?1:0,transform:visible?'translateY(0)':'translateY(12px)',transition:'opacity .5s ease .2s, transform .5s ease .2s'}}>
+            {t('legalSupportDesc')}
           </p>
         </div>
+      </div>
 
-        {/* Search & Filters */}
-        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or expertise..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/10 border border-white/20 rounded-xl pl-12 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Specialization Filter */}
-            <select
-              value={selectedSpecialization}
-              onChange={(e) => setSelectedSpecialization(e.target.value)}
-              className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {specializations.map(spec => (
-                <option key={spec} value={spec}>
-                  {spec === 'all' ? 'All Specializations' : spec}
-                </option>
-              ))}
-            </select>
-
-            {/* Sort */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="rating">Highest Rated</option>
-              <option value="experience">Most Experienced</option>
-              <option value="cases">Most Cases</option>
-            </select>
+      <div style={{maxWidth:900,margin:'0 auto',padding:'0 20px 64px'}}>
+        {/* Search */}
+        <div style={{background:DS.card,border:`1px solid ${DS.border}`,borderRadius:16,padding:10,margin:'28px 0 24px',boxShadow:'0 2px 12px rgba(26,8,0,0.04)',opacity:visible?1:0,transform:visible?'translateY(0)':'translateY(14px)',transition:'opacity .5s ease .28s, transform .5s ease .28s'}}>
+          <div style={{position:'relative'}}>
+            <Search size={15} color={DS.textMuted} style={{position:'absolute',left:13,top:'50%',transform:'translateY(-50%)'}}/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t('searchPlaceholder')}
+              style={{width:'100%',background:DS.bg,border:`1px solid ${DS.border}`,borderRadius:12,padding:'10px 14px 10px 38px',color:DS.text,fontSize:13,outline:'none',boxSizing:'border-box',transition:'all .2s'}}/>
           </div>
         </div>
 
-        {/* Lawyers Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {filteredLawyers.map((lawyer) => (
-            <div
-              key={lawyer.id}
-              className="group bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 hover:border-white/30 overflow-hidden transition-all duration-300"
-            >
-              <div className="p-6">
-                <div className="flex items-start space-x-6">
-                  {/* Profile Image */}
-                  <div className="relative flex-shrink-0">
-                    <img
-                      src={lawyer.image}
-                      alt={lawyer.name}
-                      className="w-24 h-24 rounded-2xl object-cover"
-                    />
-                    {lawyer.verified && (
-                      <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-1">
-                        <CheckCircle className="h-5 w-5 text-white" />
-                      </div>
-                    )}
-                    <div className={`absolute -top-2 -right-2 px-2 py-1 rounded-full text-xs font-bold ${
-                      lawyer.availability === 'Available' 
-                        ? 'bg-green-500 text-white' 
-                        : 'bg-orange-500 text-white'
-                    }`}>
-                      {lawyer.availability}
+        {!matches ? (
+          <div style={{textAlign:'center',padding:'80px 0',animation:'fadeIn .5s ease both'}}>
+            <Search size={32} color={DS.border} style={{margin:'0 auto 10px'}}/>
+            <p style={{color:DS.textSub,fontSize:14}}>{t('noResults')}: "<span style={{color:DS.primary}}>{search}</span>"</p>
+          </div>
+        ) : (
+          <div className="ld-card" style={{background:DS.card,border:`1px solid ${DS.border}`,borderRadius:24,boxShadow:'0 4px 24px rgba(26,8,0,0.05)',overflow:'hidden',transition:'all .3s',opacity:visible?1:0,transform:visible?'translateY(0)':'translateY(22px)'}}>
+            <div style={{padding:'32px 32px 28px'}}>
+              <div style={{display:'flex',flexWrap:'wrap',gap:32}}>
+                {/* Avatar + stats */}
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,width:200,flexShrink:0}}>
+                  <div style={{position:'relative',animation:'riseIn .5s ease .4s both'}}>
+                    {lawyer.profileImage
+                      ? <img src={lawyer.profileImage} alt={lawyer.name} style={{width:128,height:128,borderRadius:20,objectFit:'cover',border:`3px solid ${DS.border}`,boxShadow:'0 6px 20px rgba(26,8,0,0.12)'}}/>
+                      : <div style={{width:128,height:128,borderRadius:20,background:`linear-gradient(135deg,${DS.primary},#7A2C00)`,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:30,fontFamily:DS.serif,fontWeight:700,boxShadow:`0 8px 24px rgba(200,75,0,0.28)`}}>
+                          {lawyer.name?.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase()}
+                        </div>}
+                    <div style={{position:'absolute',bottom:-6,right:-6,background:'#16a34a',borderRadius:'50%',padding:5,border:`2px solid ${DS.card}`}}>
+                      <CheckCircle size={13} color="#fff"/>
+                    </div>
+                    <div style={{position:'absolute',top:-8,left:-8,padding:'3px 9px',borderRadius:999,fontSize:10,fontWeight:700,border:`2px solid ${DS.card}`,background:lawyer.status==='ACTIVE'?'#16a34a':'#ea580c',color:'#fff'}}>
+                      {lawyer.status==='ACTIVE'?`● ${t('availableNow')}`:'● Busy'}
                     </div>
                   </div>
-
-                  {/* Info */}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
+                  {[
+                    {icon:Briefcase,   val:lawyer.experience?`${lawyer.experience} Yrs`:`${services.length}`, label:lawyer.experience?t('experience'):t('myServices')},
+                    {icon:CheckCircle, val:lawyer.casesHandled?`${lawyer.casesHandled}+`:'—',                  label:t('reviews')},
+                    {icon:Award,       val:lawyer.successRate?`${lawyer.successRate}%`:'—',                    label:t('successRate')},
+                  ].map(({icon:I,val,label},i)=>(
+                    <div key={label} className="ld-stat" style={{width:'100%',display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:DS.bg,borderRadius:14,border:`1px solid ${DS.border}`,transition:'all .2s',animation:`riseIn .45s ease ${.46+i*.09}s both`}}>
+                      <I size={14} color={DS.primary}/>
                       <div>
-                        <h3 className="text-2xl font-bold text-white mb-1">{lawyer.name}</h3>
-                        <p className="text-blue-400 text-sm font-semibold">{lawyer.specialization}</p>
-                      </div>
-                      <div className="flex items-center space-x-1 bg-yellow-500/20 px-3 py-1 rounded-full">
-                        <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                        <span className="text-yellow-400 font-bold">{lawyer.rating}</span>
-                        <span className="text-gray-400 text-sm">({lawyer.reviews})</span>
+                        <p style={{color:DS.text,fontWeight:700,fontSize:13,lineHeight:1}}>{val}</p>
+                        <p style={{color:DS.textMuted,fontSize:11,marginTop:2}}>{label}</p>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                      <div className="bg-white/5 rounded-xl p-3 text-center">
-                        <Briefcase className="h-5 w-5 text-blue-400 mx-auto mb-1" />
-                        <p className="text-white font-bold text-sm">{lawyer.experience} Years</p>
-                        <p className="text-gray-400 text-xs">Experience</p>
-                      </div>
-                      <div className="bg-white/5 rounded-xl p-3 text-center">
-                        <CheckCircle className="h-5 w-5 text-green-400 mx-auto mb-1" />
-                        <p className="text-white font-bold text-sm">{lawyer.casesHandled}+</p>
-                        <p className="text-gray-400 text-xs">Cases</p>
-                      </div>
-                      <div className="bg-white/5 rounded-xl p-3 text-center">
-                        <Award className="h-5 w-5 text-purple-400 mx-auto mb-1" />
-                        <p className="text-white font-bold text-sm">{lawyer.successRate}%</p>
-                        <p className="text-gray-400 text-xs">Success</p>
-                      </div>
+                {/* Details */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',flexWrap:'wrap',justifyContent:'space-between',gap:10,marginBottom:14,animation:'riseIn .5s ease .42s both'}}>
+                    <div>
+                      <h2 style={{fontFamily:DS.serif,fontSize:26,color:DS.text,fontWeight:700,marginBottom:4,lineHeight:1.2}}>{lawyer.name}</h2>
+                      <p style={{color:DS.primary,fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:6}}>
+                        <Scale size={13}/>{lawyer.specialization||t('specialization')}
+                      </p>
                     </div>
+                    {lawyer.rating&&(
+                      <div style={{display:'flex',alignItems:'center',gap:6,background:DS.primaryLight,padding:'5px 12px',borderRadius:999,border:`1px solid ${DS.primaryBorder}`,alignSelf:'flex-start'}}>
+                        <Star size={13} color={DS.primary} fill={DS.primary}/>
+                        <span style={{color:DS.primary,fontWeight:700,fontSize:14}}>{lawyer.rating}</span>
+                        {lawyer.totalReviews>0&&<span style={{color:DS.textMuted,fontSize:12}}>({lawyer.totalReviews})</span>}
+                      </div>
+                    )}
+                  </div>
 
-                    {/* Expertise Tags */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {lawyer.expertise.slice(0, 3).map((exp, i) => (
-                        <span
-                          key={i}
-                          className="bg-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full border border-blue-500/30"
-                        >
-                          {exp}
-                        </span>
+                  {services.length>0&&(
+                    <div style={{display:'flex',flexWrap:'wrap',gap:7,marginBottom:14,animation:'riseIn .5s ease .48s both'}}>
+                      {services.slice(0,4).map((s,i)=>(
+                        <span key={i} style={{background:DS.primaryLight,color:DS.primary,fontSize:11,padding:'4px 12px',borderRadius:999,border:`1px solid ${DS.primaryBorder}`,fontWeight:600,animation:`riseIn .4s ease ${.5+i*.06}s both`}}>{s.serviceName}</span>
                       ))}
-                      {lawyer.expertise.length > 3 && (
-                        <span className="bg-purple-500/20 text-purple-400 text-xs px-3 py-1 rounded-full border border-purple-500/30">
-                          +{lawyer.expertise.length - 3} more
-                        </span>
-                      )}
+                      {services.length>4&&<span style={{background:DS.bg,color:DS.textMuted,fontSize:11,padding:'4px 12px',borderRadius:999,border:`1px solid ${DS.border}`,fontWeight:600}}>+{services.length-4}</span>}
                     </div>
+                  )}
 
-                    {/* Contact Info */}
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center text-gray-300 text-sm">
-                        <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                        {lawyer.location}
-                      </div>
-                      <div className="flex items-center text-gray-300 text-sm">
-                        <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                        {lawyer.phone}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-400 text-sm">Fees:</span>
-                        <span className="text-green-400 font-bold text-sm">{lawyer.fees}</span>
-                      </div>
-                    </div>
+                  {(lawyer.about||lawyer.specialization)&&(
+                    <p style={{color:DS.textSub,fontSize:13,lineHeight:1.75,marginBottom:16,display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden',animation:'riseIn .5s ease .54s both'}}>
+                      {lawyer.about||`${t('specialization')}: ${lawyer.specialization}`}
+                    </p>
+                  )}
 
-                    {/* Actions */}
-                    <div className="flex space-x-3">
-                      <button className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2">
-                        <Calendar className="h-5 w-5" />
-                        <span>Book Consultation</span>
-                      </button>
-                      <button className="bg-white/10 hover:bg-white/20 border border-white/20 text-white p-3 rounded-xl transition-all">
-                        <Phone className="h-5 w-5" />
-                      </button>
-                      <button className="bg-white/10 hover:bg-white/20 border border-white/20 text-white p-3 rounded-xl transition-all">
-                        <Mail className="h-5 w-5" />
-                      </button>
-                    </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:20,animation:'riseIn .5s ease .58s both'}}>
+                    {(lawyer.city||lawyer.address)&&<div style={{display:'inline-flex',alignItems:'center',gap:8,color:DS.textSub,fontSize:13}}><MapPin size={13} color={DS.textMuted}/>{[lawyer.address,lawyer.city,lawyer.state].filter(Boolean).join(', ')}</div>}
+                    {lawyer.phone&&<div style={{display:'inline-flex',alignItems:'center',gap:8,color:DS.textSub,fontSize:13}}><Phone size={13} color={DS.textMuted}/>{lawyer.phone}</div>}
+                    {lawyer.email&&<div style={{display:'inline-flex',alignItems:'center',gap:8,color:DS.textSub,fontSize:13}}><Mail size={13} color={DS.textMuted}/>{lawyer.email}</div>}
+                  </div>
+
+                  <div style={{display:'flex',gap:10,flexWrap:'wrap',animation:'riseIn .5s ease .64s both'}}>
+                    <button className="ld-btn" onClick={()=>navigate(`/lawyer/${lawyer.id}`)} style={{display:'inline-flex',alignItems:'center',gap:8,background:DS.primary,color:'#fff',border:'none',borderRadius:14,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .2s',boxShadow:`0 4px 16px rgba(200,75,0,0.22)`}}>
+                      <Calendar size={13}/> {t('bookConsultation')} <ArrowUpRight size={13}/>
+                    </button>
+                    {lawyer.phone&&<a href={`tel:${lawyer.phone}`} style={{display:'inline-flex',alignItems:'center',gap:8,background:DS.bg,border:`1px solid ${DS.border}`,color:DS.textSub,borderRadius:14,padding:'10px 16px',fontSize:13,fontWeight:600,textDecoration:'none',transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor=DS.primaryBorder;e.currentTarget.style.color=DS.primary;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=DS.border;e.currentTarget.style.color=DS.textSub;}}><Phone size={13}/> {t('callNow')}</a>}
+                    {lawyer.email&&<a href={`mailto:${lawyer.email}`} style={{display:'inline-flex',alignItems:'center',gap:8,background:DS.bg,border:`1px solid ${DS.border}`,color:DS.textSub,borderRadius:14,padding:'10px 16px',fontSize:13,fontWeight:600,textDecoration:'none',transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.borderColor=DS.primaryBorder;e.currentTarget.style.color=DS.primary;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=DS.border;e.currentTarget.style.color=DS.textSub;}}><Mail size={13}/> {t('whatsapp')}</a>}
                   </div>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
 
-        {/* No Results */}
-        {filteredLawyers.length === 0 && (
-          <div className="text-center py-20">
-            <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-12 border border-white/10 inline-block">
-              <Search className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-400 text-xl">No lawyers found matching your criteria</p>
-            </div>
+            {services.length>0&&(
+              <div style={{borderTop:`1px solid ${DS.border}`,background:DS.bg,padding:'20px 32px',opacity:visible?1:0,transform:visible?'translateY(0)':'translateY(10px)',transition:'opacity .5s ease .72s, transform .5s ease .72s'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+                  <p style={{fontSize:10,fontWeight:700,color:DS.textMuted,textTransform:'uppercase',letterSpacing:'0.1em'}}>{t('ourServices')} & {t('price')}</p>
+                  <span style={{fontSize:11,color:DS.textMuted}}>{services.length} {t('myServices')}</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))',gap:8}}>
+                  {services.map((s,i)=>(
+                    <div key={s.id||i} className="ld-svc" style={{background:DS.card,border:`1px solid ${DS.border}`,borderRadius:12,padding:'9px 13px',display:'flex',justifyContent:'space-between',alignItems:'center',transition:'all .2s',cursor:'default',animation:`riseIn .4s ease ${.74+i*.05}s both`}}>
+                      <span style={{color:DS.text,fontSize:12,fontWeight:600}}>{s.serviceName}</span>
+                      {s.price&&<span style={{color:'#16a34a',fontSize:12,fontWeight:700,marginLeft:6,flexShrink:0}}>₹{Number(s.price).toLocaleString()}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
-};
-
-export default LawyerDirectory;
+}

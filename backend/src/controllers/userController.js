@@ -100,6 +100,93 @@ const getUserById = async (req, res) => {
   }
 };
 
+// ✅ GET - Lawyer public profile (no auth needed)
+// Schema ma: profileImage nathi (avatar che), barCouncilId nathi (professionalDetails JSON ma che)
+const getLawyerProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const where = id
+      ? { id, role: 'LAWYER' }
+      : { role: 'LAWYER', status: 'ACTIVE' };
+
+    const lawyerRaw = await prisma.user.findFirst({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        professionalDetails: true, // JSON - specialization, experience, barCouncilId etc
+        role: true,
+        status: true,
+        isVerified: true,
+        legalServices: {           // lawyer na services
+          select: {
+            id: true,
+            name: true,            // schema ma 'name' che - 'serviceName' nahi!
+            description: true,
+            price: true,
+          }
+        }
+      }
+    });
+
+    if (!lawyerRaw) {
+      return res.status(404).json({
+        error: id ? 'Lawyer maldo nahi' : 'Koi active lawyer nathi maldo'
+      });
+    }
+
+    // professionalDetails JSON mathi extra fields khadho
+    const pd = lawyerRaw.professionalDetails || {};
+
+    // Frontend ne match karta format ma response
+    const lawyer = {
+      id:             lawyerRaw.id,
+      name:           lawyerRaw.name,
+      email:          lawyerRaw.email,
+      phone:          lawyerRaw.phone,
+      address:        lawyerRaw.address,
+      city:           lawyerRaw.city,
+      state:          lawyerRaw.state,
+      profileImage:   null,                            // schema ma image field nathi
+      role:           lawyerRaw.role,
+      status:         lawyerRaw.status,
+      isVerified:     lawyerRaw.isVerified,
+      // professionalDetails JSON mathi
+      specialization: pd.specialization || null,
+      experience:     pd.experience     || null,
+      barCouncilId:   pd.barCouncilId   || pd.licenseNumber || null,
+      about:          pd.about          || pd.bio           || null,
+      rating:         pd.rating         || null,
+      totalReviews:   pd.totalReviews   || 0,
+      casesHandled:   pd.casesHandled   || null,
+      successRate:    pd.successRate    || null,
+      availability:   pd.availability   || {},
+      education:      pd.education      || [],
+      certifications: pd.certifications || [],
+      reviews:        pd.reviews        || [],
+      fees:           pd.fees           || null,
+      // services: schema 'name' → frontend 'serviceName' transform
+      services: lawyerRaw.legalServices.map(s => ({
+        id:          s.id,
+        serviceName: s.name,
+        description: s.description,
+        price:       s.price,
+      }))
+    };
+
+    res.json({ success: true, lawyer });
+  } catch (error) {
+    console.error('getLawyerProfile error:', error);
+    res.status(500).json({ error: 'Lawyer profile fetch karva ma error' });
+  }
+};
+
 // ✅ PUT - User approve karo (BROKER/LAWYER)
 const approveUser = async (req, res) => {
   try {
@@ -173,6 +260,7 @@ module.exports = {
   getAllUsers,
   getPendingUsers,
   getUserById,
+  getLawyerProfile,
   approveUser,
   rejectUser,
   updateUser,

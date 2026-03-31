@@ -1,352 +1,346 @@
-import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, MapPin, Lock, Bell, Shield, Camera, Save, CheckCircle, Upload } from 'lucide-react';
-import { useAuth } from '../../utils/AuthContext';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Shield, Bell, Camera, Save, CheckCircle, AlertCircle, Lock, Loader2 } from 'lucide-react';
+import { authAPI } from '../../services/api';
 
+/* ─── Design System ──────────────────────────────────────────────── */
+const DS = {
+  bg:           '#F9F6F2',
+  card:         '#FFFFFF',
+  border:       '#EDE8E3',
+  primary:      '#C84B00',
+  primaryLight: '#FEF3EE',
+  primaryBorder:'rgba(200,75,0,0.18)',
+  text:         '#1A0800',
+  textSub:      '#6B5748',
+  textMuted:    '#9C8B7A',
+  serif:        "Georgia, 'Times New Roman', serif",
+  sans:         "'DM Sans', system-ui, sans-serif",
+};
+
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+  .up-root { font-family: 'DM Sans', system-ui, sans-serif; box-sizing: border-box; }
+  .up-root * { box-sizing: border-box; }
+  .up-input { width:100%; background:#fff; border:1px solid #EDE8E3; border-radius:10px; padding:9px 12px; font-size:14px; color:#1A0800; outline:none; transition:border-color 0.15s, box-shadow 0.15s; font-family:inherit; }
+  .up-input:focus { border-color:#C84B00; box-shadow:0 0 0 3px rgba(200,75,0,0.10); }
+  .up-input:disabled { background:#F5F0EB; color:#9C8B7A; cursor:not-allowed; }
+  .up-tab { width:100%; display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:12px; border:none; cursor:pointer; font-size:14px; font-weight:500; text-align:left; transition:all 0.15s; }
+  @keyframes up-fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .up-fade { animation: up-fade 0.28s ease forwards; }
+  @keyframes up-spin { to{transform:rotate(360deg)} }
+  .up-spin { animation: up-spin 1s linear infinite; }
+`;
+
+const Label = ({ children }) => (
+  <label style={{ display:'block', fontSize:11, fontWeight:700, color:DS.textMuted, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>
+    {children}
+  </label>
+);
+
+const Field = ({ label, disabled, textarea, rows=3, ...props }) => (
+  <div>
+    {label && <Label>{label}</Label>}
+    {textarea
+      ? <textarea className="up-input" rows={rows} disabled={disabled} {...props}
+          style={{ resize:'vertical', fontFamily:'inherit' }} />
+      : <input className="up-input" disabled={disabled} {...props} />}
+  </div>
+);
+
+const Toggle = ({ value, onChange }) => (
+  <button onClick={onChange}
+    style={{ position:'relative', width:44, height:24, borderRadius:12, background: value ? DS.primary : DS.border, border:'none', cursor:'pointer', transition:'background 0.2s', flexShrink:0 }}>
+    <div style={{ position:'absolute', top:3, left: value ? 23 : 3, width:18, height:18, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.2)', transition:'left 0.2s' }} />
+  </button>
+);
+
+const Alert = ({ type, children }) => {
+  const styles = {
+    success: { bg:'#F0FDF4', border:'#BBF7D0', color:'#15803D', Icon: CheckCircle },
+    error:   { bg:'#FEF2F2', border:'#FECACA', color:'#B91C1C', Icon: AlertCircle },
+  };
+  const { bg, border, color, Icon } = styles[type];
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:8, background:bg, border:`1px solid ${border}`, color, borderRadius:12, padding:'10px 14px', fontSize:14, marginBottom:20 }}>
+      <Icon size={15} />{children}
+    </div>
+  );
+};
+
+/* ─── Main Component ─────────────────────────────────────────────── */
 const UserProfile = () => {
-  const { user, updateUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [profileImage, setProfileImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  // Read user from localStorage directly (most reliable)
+  const getStoredUser = () => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); }
+    catch { return {}; }
+  };
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    location: '',
-    role: '',
-    bio: ''
+  const [tab, setTab]         = useState('profile');
+  const [saving, setSaving]   = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError]     = useState('');
+  const [preview, setPreview] = useState(null);
+  const fileRef               = useRef();
+
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', city: '', state: '', address: '', bio: '', role: '',
   });
 
-  const [notifications, setNotifications] = useState({
-    email: true,
-    sms: false,
-    push: true,
-    newProperties: true,
-    enquiries: true,
-    legalUpdates: false
+  const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' });
+
+  const [notifs, setNotifs] = useState(() => {
+    // Load from localStorage so notifications persist
+    try {
+      const saved = localStorage.getItem('rudra_notif_prefs');
+      return saved ? JSON.parse(saved) : {
+        emailAlerts: true, smsAlerts: false, pushNotifications: true,
+        newProperties: true, enquiries: true, legalUpdates: false,
+      };
+    } catch { return { emailAlerts: true, smsAlerts: false, pushNotifications: true, newProperties: true, enquiries: true, legalUpdates: false }; }
   });
 
-  // Load user data from AuthContext
+  // Load user on mount
   useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        location: user.location || '',
-        role: user.role || '',
-        bio: user.bio || ''
-      });
-      
-      // Load profile image if exists
-      if (user.profileImage) {
-        setImagePreview(user.profileImage);
-      }
-    }
-  }, [user]);
+    const u = getStoredUser();
+    setForm({
+      name:    u.name    || '',
+      email:   u.email   || '',
+      phone:   u.phone   || '',
+      city:    u.city    || '',
+      state:   u.state   || '',
+      address: u.address || '',
+      bio:     u.bio     || '',
+      role:    u.role    || '',
+    });
+    if (u.profileImage) setPreview(u.profileImage);
+  }, []);
 
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell }
+  // Also try fetching fresh data from backend on mount
+  useEffect(() => {
+    authAPI.getCurrentUser().then(res => {
+      const u = res.data?.user || res.data;
+      if (!u) return;
+      setForm({
+        name:    u.name    || '',
+        email:   u.email   || '',
+        phone:   u.phone   || '',
+        city:    u.city    || '',
+        state:   u.state   || '',
+        address: u.address || '',
+        bio:     u.bio     || '',
+        role:    u.role    || '',
+      });
+      if (u.profileImage) setPreview(u.profileImage);
+      // Update localStorage with fresh server data
+      const stored = getStoredUser();
+      localStorage.setItem('user', JSON.stringify({ ...stored, ...u }));
+    }).catch(() => {}); // silently fail — localStorage fallback above
+  }, []);
+
+  const showSuccess = (msg) => {
+    setSuccess(msg); setError('');
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
+  /* ── Save Profile ─────────────────────────────────────────────── */
+  const saveProfile = async () => {
+    setSaving(true); setError(''); setSuccess('');
+    try {
+      const payload = { ...form, profileImage: preview };
+      const res = await authAPI.updateProfile(payload);
+      const updated = res.data?.user || res.data || payload;
+
+      // Update localStorage so it persists after logout/re-login
+      const stored = getStoredUser();
+      localStorage.setItem('user', JSON.stringify({ ...stored, ...updated, profileImage: preview }));
+
+      showSuccess('Profile saved successfully!');
+    } catch (e) {
+      setError(e?.response?.data?.message || e?.response?.data?.error || 'Save failed. Please try again.');
+    } finally { setSaving(false); }
+  };
+
+  /* ── Change Password ──────────────────────────────────────────── */
+  const changePassword = async () => {
+    setError(''); setSuccess('');
+    if (!pwd.current)              { setError('Current password nakho.'); return; }
+    if (pwd.next !== pwd.confirm)  { setError('New passwords match nathi!'); return; }
+    if (pwd.next.length < 6)       { setError('Min 6 characters required.'); return; }
+    setSaving(true);
+    try {
+      await authAPI.changePassword({ currentPassword: pwd.current, newPassword: pwd.next });
+      setPwd({ current: '', next: '', confirm: '' });
+      showSuccess('Password changed successfully!');
+    } catch (e) {
+      setError(e?.response?.data?.message || e?.response?.data?.error || 'Password change failed.');
+    } finally { setSaving(false); }
+  };
+
+  /* ── Save Notifications ───────────────────────────────────────── */
+  const saveNotifs = () => {
+    localStorage.setItem('rudra_notif_prefs', JSON.stringify(notifs));
+    showSuccess('Notification preferences saved!');
+  };
+
+  const getInitials = () => {
+    if (!form.name) return 'U';
+    const parts = form.name.trim().split(' ');
+    return parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : parts[0][0].toUpperCase();
+  };
+
+  const TABS = [
+    { id: 'profile',       label: 'Profile',       icon: User   },
+    { id: 'security',      label: 'Security',       icon: Shield },
+    { id: 'notifications', label: 'Notifications',  icon: Bell   },
   ];
 
-  // Handle image upload
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setProfileImage(file);
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Get initials for avatar
-  const getInitials = () => {
-    if (!formData.name) return 'U';
-    const names = formData.name.split(' ');
-    if (names.length >= 2) {
-      return (names[0][0] + names[1][0]).toUpperCase();
-    }
-    return names[0][0].toUpperCase();
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    
-    try {
-      // Update user in AuthContext (localStorage)
-      updateUser({
-        ...formData,
-        profileImage: imagePreview
-      });
-
-      // TODO: Send to backend API
-      // const response = await fetch('http://localhost:5000/api/users/update', {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-      //   },
-      //   body: JSON.stringify(formData)
-      // });
-
-      setTimeout(() => {
-        setIsSaving(false);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-      }, 1000);
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      setIsSaving(false);
-    }
+  const NLABELS = {
+    emailAlerts:       'Email Alerts',
+    smsAlerts:         'SMS Alerts',
+    pushNotifications: 'Push Notifications',
+    newProperties:     'New Properties',
+    enquiries:         'Enquiries',
+    legalUpdates:      'Legal Updates',
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-white mb-4">Account Settings</h1>
-          <p className="text-xl text-gray-300">Manage your profile and preferences</p>
+    <div className="up-root" style={{ minHeight:'100vh', background:DS.bg, padding:'40px 20px' }}>
+      <style>{CSS}</style>
+
+      <div style={{ maxWidth:960, margin:'0 auto' }}>
+
+        {/* Page header */}
+        <div style={{ marginBottom:32 }}>
+          <h1 style={{ fontFamily:DS.serif, fontSize:32, fontWeight:700, color:DS.text, marginBottom:4 }}>Account Settings</h1>
+          <p style={{ color:DS.textSub, fontSize:15 }}>Manage your profile and preferences</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-6">
-              {/* Profile Picture */}
-              <div className="text-center mb-6">
-                <div className="relative inline-block">
-                  {imagePreview ? (
-                    <img 
-                      src={imagePreview} 
-                      alt="Profile" 
-                      className="w-32 h-32 rounded-full object-cover border-4 border-white/20 mb-4"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-4xl font-bold mb-4">
-                      {getInitials()}
-                    </div>
-                  )}
-                  
-                  <label className="absolute bottom-4 right-0 bg-blue-500 rounded-full p-3 hover:bg-blue-600 transition-all cursor-pointer">
-                    <Camera className="h-5 w-5 text-white" />
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <h3 className="text-white font-bold text-xl mb-1">{formData.name || 'User'}</h3>
-                <p className="text-gray-400 capitalize">{formData.role?.toLowerCase() || 'User'}</p>
-              </div>
+        <div style={{ display:'grid', gridTemplateColumns:'220px 1fr', gap:20, alignItems:'start' }}>
 
-              {/* Navigation */}
-              <div className="space-y-2">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-                      activeTab === tab.id
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <tab.icon className="h-5 w-5" />
-                    <span>{tab.label}</span>
-                  </button>
-                ))}
+          {/* ── Left Panel ──────────────────────────────────── */}
+          <div>
+            {/* Avatar card */}
+            <div style={{ background:DS.card, border:`1px solid ${DS.border}`, borderRadius:20, padding:24, textAlign:'center', marginBottom:12 }}>
+              <div style={{ position:'relative', display:'inline-block', marginBottom:14 }}>
+                {preview ? (
+                  <img src={preview} alt="Profile"
+                    style={{ width:88, height:88, borderRadius:20, objectFit:'cover', border:`2px solid ${DS.primaryBorder}` }} />
+                ) : (
+                  <div style={{ width:88, height:88, borderRadius:20, background:DS.primaryLight, border:`2px solid ${DS.primaryBorder}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <span style={{ fontFamily:DS.serif, fontSize:32, fontWeight:700, color:DS.primary }}>{getInitials()}</span>
+                  </div>
+                )}
+                <button onClick={() => fileRef.current?.click()}
+                  style={{ position:'absolute', bottom:-6, right:-6, width:30, height:30, borderRadius:10, background:DS.primary, border:'2px solid #fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                  <Camera size={14} color="#fff" />
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }}
+                  onChange={e => {
+                    const f = e.target.files[0];
+                    if (f) { const r = new FileReader(); r.onloadend = () => setPreview(r.result); r.readAsDataURL(f); }
+                  }} />
               </div>
+              <p style={{ fontFamily:DS.serif, fontSize:16, fontWeight:700, color:DS.text, marginBottom:4 }}>{form.name || 'User'}</p>
+              <span style={{ background:DS.primaryLight, color:DS.primary, border:`1px solid ${DS.primaryBorder}`, borderRadius:20, padding:'3px 12px', fontSize:11, fontWeight:700 }}>
+                {form.role || 'USER'}
+              </span>
+            </div>
+
+            {/* Tab pills */}
+            <div style={{ background:DS.card, border:`1px solid ${DS.border}`, borderRadius:20, padding:10 }}>
+              {TABS.map(({ id, label, icon: Icon }) => (
+                <button key={id} className="up-tab" onClick={() => { setTab(id); setError(''); setSuccess(''); }}
+                  style={{ background: tab === id ? DS.primaryLight : 'transparent', color: tab === id ? DS.primary : DS.textSub, fontWeight: tab === id ? 700 : 500, borderLeft: tab === id ? `3px solid ${DS.primary}` : '3px solid transparent', marginBottom:4 }}>
+                  <Icon size={15} />{label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-8">
-              {/* Profile Tab */}
-              {activeTab === 'profile' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Profile Information</h2>
+          {/* ── Right Panel ─────────────────────────────────── */}
+          <div className="up-fade" key={tab} style={{ background:DS.card, border:`1px solid ${DS.border}`, borderRadius:20, padding:32 }}>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Full Name</label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter your full name"
-                      />
-                    </div>
+            {success && <Alert type="success">{success}</Alert>}
+            {error   && <Alert type="error">{error}</Alert>}
 
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Email</label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter your email"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Phone</label>
-                      <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter your phone number"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Location</label>
-                      <input
-                        type="text"
-                        value={formData.location}
-                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter your location"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Role</label>
-                      <input
-                        type="text"
-                        value={formData.role}
-                        disabled
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed"
-                      />
-                    </div>
+            {/* ── Profile Tab ───────────────────────────────── */}
+            {tab === 'profile' && (
+              <>
+                <h2 style={{ fontFamily:DS.serif, fontSize:22, fontWeight:700, color:DS.text, marginBottom:24 }}>Profile Information</h2>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+                  <Field label="Full Name"  value={form.name}    onChange={e => setForm({...form, name:e.target.value})}    placeholder="Full name" />
+                  <Field label="Email"      value={form.email}   disabled />
+                  <Field label="Phone"      value={form.phone}   onChange={e => setForm({...form, phone:e.target.value})}   placeholder="+91 98765 43210" type="tel" />
+                  <Field label="City"       value={form.city}    onChange={e => setForm({...form, city:e.target.value})}    placeholder="City" />
+                  <Field label="State"      value={form.state}   onChange={e => setForm({...form, state:e.target.value})}   placeholder="State" />
+                  <Field label="Role"       value={form.role}    disabled />
+                  <div style={{ gridColumn:'span 2' }}>
+                    <Field label="Address"  value={form.address} onChange={e => setForm({...form, address:e.target.value})} placeholder="Full address" />
                   </div>
-
-                  <div>
-                    <label className="block text-gray-300 font-semibold mb-2">Bio</label>
-                    <textarea
-                      value={formData.bio}
-                      onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                      rows="4"
-                      className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Tell us about yourself..."
-                    />
+                  <div style={{ gridColumn:'span 2' }}>
+                    <Field label="Bio" textarea value={form.bio} onChange={e => setForm({...form, bio:e.target.value})} placeholder="Tell us about yourself..." rows={3} />
                   </div>
                 </div>
-              )}
 
-              {/* Security Tab */}
-              {activeTab === 'security' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Security Settings</h2>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Current Password</label>
-                      <input
-                        type="password"
-                        placeholder="Enter current password"
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">New Password</label>
-                      <input
-                        type="password"
-                        placeholder="Enter new password"
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Confirm Password</label>
-                      <input
-                        type="password"
-                        placeholder="Confirm new password"
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-6 mt-6">
-                    <h3 className="text-white font-bold mb-4">Two-Factor Authentication</h3>
-                    <p className="text-gray-400 mb-4">Add an extra layer of security to your account</p>
-                    <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all">
-                      Enable 2FA
-                    </button>
-                  </div>
+                <div style={{ display:'flex', justifyContent:'flex-end', marginTop:28, paddingTop:20, borderTop:`1px solid ${DS.border}` }}>
+                  <button onClick={saveProfile} disabled={saving}
+                    style={{ display:'flex', alignItems:'center', gap:8, background:DS.primary, color:'#fff', padding:'11px 24px', borderRadius:14, fontWeight:700, fontSize:14, border:'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                    {saving ? <><Loader2 size={15} className="up-spin" /> Saving…</> : <><Save size={15} /> Save Changes</>}
+                  </button>
                 </div>
-              )}
+              </>
+            )}
 
-              {/* Notifications Tab */}
-              {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Notification Preferences</h2>
+            {/* ── Security Tab ──────────────────────────────── */}
+            {tab === 'security' && (
+              <>
+                <h2 style={{ fontFamily:DS.serif, fontSize:22, fontWeight:700, color:DS.text, marginBottom:24 }}>Security Settings</h2>
+                <div style={{ display:'flex', flexDirection:'column', gap:14, maxWidth:380 }}>
+                  <Field label="Current Password" type="password" value={pwd.current}  onChange={e => setPwd({...pwd, current:e.target.value})}  placeholder="••••••••" />
+                  <Field label="New Password"     type="password" value={pwd.next}     onChange={e => setPwd({...pwd, next:e.target.value})}     placeholder="••••••••" />
+                  <Field label="Confirm Password" type="password" value={pwd.confirm}  onChange={e => setPwd({...pwd, confirm:e.target.value})}  placeholder="••••••••" />
+                  <button onClick={changePassword} disabled={saving}
+                    style={{ alignSelf:'flex-start', display:'flex', alignItems:'center', gap:8, background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', padding:'9px 18px', borderRadius:12, fontWeight:700, fontSize:14, cursor:'pointer', opacity: saving ? 0.7 : 1 }}>
+                    <Lock size={14} />{saving ? 'Changing…' : 'Change Password'}
+                  </button>
+                </div>
 
-                  <div className="space-y-4">
-                    {Object.entries(notifications).map(([key, value]) => (
-                      <div key={key} className="flex items-center justify-between bg-white/5 rounded-xl p-4 border border-white/10">
-                        <div>
-                          <p className="text-white font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1')}</p>
-                          <p className="text-gray-400 text-sm">Receive notifications via {key}</p>
-                        </div>
-                        <button
-                          onClick={() => setNotifications({ ...notifications, [key]: !value })}
-                          className={`relative w-14 h-7 rounded-full transition-colors ${
-                            value ? 'bg-blue-500' : 'bg-white/20'
-                          }`}
-                        >
-                          <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                            value ? 'translate-x-7' : 'translate-x-0'
-                          }`}></div>
-                        </button>
+                <div style={{ marginTop:28, padding:20, background:DS.bg, borderRadius:16, border:`1px solid ${DS.border}` }}>
+                  <p style={{ fontWeight:700, color:DS.text, marginBottom:4, fontSize:14 }}>Two-Factor Authentication</p>
+                  <p style={{ color:DS.textMuted, fontSize:13, marginBottom:14 }}>Add an extra layer of security to your account</p>
+                  <button style={{ display:'flex', alignItems:'center', gap:8, background:DS.primaryLight, border:`1px solid ${DS.primaryBorder}`, color:DS.primary, padding:'9px 18px', borderRadius:12, fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                    <Shield size={14} /> Enable 2FA
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Notifications Tab ─────────────────────────── */}
+            {tab === 'notifications' && (
+              <>
+                <h2 style={{ fontFamily:DS.serif, fontSize:22, fontWeight:700, color:DS.text, marginBottom:24 }}>Notification Preferences</h2>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {Object.entries(notifs).map(([key, val]) => (
+                    <div key={key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', background:DS.bg, border:`1px solid ${DS.border}`, borderRadius:14 }}>
+                      <div>
+                        <p style={{ fontWeight:600, color:DS.text, fontSize:14 }}>{NLABELS[key] || key}</p>
+                        <p style={{ color:DS.textMuted, fontSize:12, marginTop:2 }}>Receive {(NLABELS[key] || key).toLowerCase()}</p>
                       </div>
-                    ))}
-                  </div>
+                      <Toggle value={val} onChange={() => setNotifs({...notifs, [key]: !val})} />
+                    </div>
+                  ))}
                 </div>
-              )}
 
-              {/* Save Button */}
-              <div className="flex items-center justify-end space-x-4 mt-8 pt-8 border-t border-white/10">
-                {saveSuccess && (
-                  <div className="flex items-center text-green-400 space-x-2">
-                    <CheckCircle className="h-5 w-5" />
-                    <span>Changes saved successfully!</span>
-                  </div>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center space-x-2"
-                >
-                  {isSaving ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-5 w-5" />
-                      <span>Save Changes</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+                <div style={{ display:'flex', justifyContent:'flex-end', marginTop:28, paddingTop:20, borderTop:`1px solid ${DS.border}` }}>
+                  <button onClick={saveNotifs}
+                    style={{ display:'flex', alignItems:'center', gap:8, background:DS.primary, color:'#fff', padding:'11px 24px', borderRadius:14, fontWeight:700, fontSize:14, border:'none', cursor:'pointer' }}>
+                    <Save size={15} /> Save Preferences
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

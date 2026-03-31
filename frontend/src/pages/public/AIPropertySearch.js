@@ -1,369 +1,242 @@
-import React, { useState } from 'react';
-import { Search, Sparkles, MapPin, IndianRupee, Bed, Bath, Square, Sliders, X, TrendingUp, Heart } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Search, Sparkles, MapPin, Bed, Bath, Square,
+  SlidersHorizontal, X, Heart, ArrowUpRight, Loader2, Flame, ArrowLeft
+} from 'lucide-react';
+import { propertyAPI } from '../../services/api';
+import { useLanguage } from '../../utils/LanguageContext';
 
-const AIPropertySearch = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState([]);
-  const [filters, setFilters] = useState({
-    minPrice: '',
-    maxPrice: '',
-    bedrooms: '',
-    propertyType: 'all',
-    amenities: []
-  });
+const C = {
+  bg:'#F9F6F2', card:'#FFFFFF', border:'#EDE8E3',
+  primary:'#C84B00', pLight:'#FEF3EE', pBorder:'rgba(200,75,0,0.15)',
+  text:'#1A0800', sub:'#6B5748', muted:'#9C8B7A',
+  serif:'Georgia, "Times New Roman", serif',
+  sans:"'DM Sans', 'Segoe UI', system-ui, sans-serif",
+};
 
-  const properties = [
-    {
-      id: 1,
-      title: 'Luxury Villa with Pool',
-      location: 'Alkapuri',
-      price: 12500000,
-      beds: 4,
-      baths: 3,
-      area: 2500,
-      type: 'Villa',
-      image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600',
-      amenities: ['Pool', 'Garden', 'Gym'],
-      score: 95
-    },
-    {
-      id: 2,
-      title: 'Modern 3BHK Apartment',
-      location: 'Race Course',
-      price: 6500000,
-      beds: 3,
-      baths: 2,
-      area: 1800,
-      type: 'Apartment',
-      image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600',
-      amenities: ['Parking', 'Security', 'Lift'],
-      score: 88
-    },
-    {
-      id: 3,
-      title: 'Premium Office Space',
-      location: 'Gotri',
-      price: 8500000,
-      beds: null,
-      baths: 2,
-      area: 3000,
-      type: 'Commercial',
-      image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=600',
-      amenities: ['Parking', 'Cafeteria', 'Conference Room'],
-      score: 92
-    }
-  ];
+const fmt = (p) => {
+  if (!p) return '–';
+  if (p >= 10000000) return `₹${(p/10000000).toFixed(2)} Cr`;
+  if (p >= 100000)   return `₹${(p/100000).toFixed(1)} L`;
+  return `₹${Number(p).toLocaleString('en-IN')}`;
+};
 
-  const amenitiesList = ['Pool', 'Garden', 'Gym', 'Parking', 'Security', 'Lift', 'Club House', 'Playground'];
+const getImg = (p) => {
+  try {
+    const imgs = typeof p.images==='string' ? JSON.parse(p.images) : p.images;
+    if (Array.isArray(imgs) && imgs.length) return typeof imgs[0]==='string' ? imgs[0] : imgs[0]?.url;
+  } catch {}
+  return null;
+};
 
-  const quickSearches = [
-    '3BHK under 50 lakhs',
-    'Villa with pool in Alkapuri',
-    'Commercial space in Gotri',
-    'Apartment near airport'
-  ];
+const TYPE_DOT = {
+  RESIDENTIAL:'#7c3aed', COMMERCIAL:'#C84B00',
+  AGRICULTURAL:'#059669', INDUSTRIAL:'#d97706', LAND:'#16a34a',
+};
 
-  const handleAISearch = () => {
-    // Simulate AI processing
-    const suggestions = [
-      'Based on your search, showing properties in premium locations',
-      'Filtered by your budget range',
-      'Matched 3 properties with your requirements'
-    ];
-    setAiSuggestions(suggestions);
-  };
+const LAND_TYPES = new Set(['LAND','AGRICULTURAL','INDUSTRIAL']);
 
-  const handleQuickSearch = (query) => {
-    setSearchQuery(query);
-    handleAISearch();
-  };
-
-  const toggleAmenity = (amenity) => {
-    setFilters(prev => ({
-      ...prev,
-      amenities: prev.amenities.includes(amenity)
-        ? prev.amenities.filter(a => a !== amenity)
-        : [...prev.amenities, amenity]
-    }));
-  };
+const ResultCard = ({ p, index, wished, onWish, t }) => {
+  const navigate = useNavigate();
+  const img = getImg(p);
+  const dot = TYPE_DOT[p.type] || C.muted;
+  const isLand = LAND_TYPES.has(p.type);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Hero Search Section */}
-      <div className="relative py-20 px-4">
-        <div className="max-w-6xl mx-auto">
-          {/* AI Badge */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl rounded-full px-6 py-3 border border-white/20 mb-6">
-              <Sparkles className="h-5 w-5 text-yellow-400 animate-pulse" />
-              <span className="text-white font-semibold">AI-Powered Search</span>
-            </div>
-            
-            <h1 className="text-5xl md:text-6xl font-bold text-white mb-4">
-              Find Your Perfect Property
-            </h1>
-            <p className="text-xl text-gray-300">
-              Intelligent search powered by artificial intelligence
+    <div
+      onClick={() => navigate(`/property/${p.id}`)}
+      style={{ background:C.card, borderRadius:24, border:`1px solid ${C.border}`, overflow:'hidden', cursor:'pointer', display:'flex', flexDirection:'column', transition:'all 0.35s cubic-bezier(.22,1,.36,1)', animation:`cardReveal 0.5s cubic-bezier(.22,1,.36,1) ${index * 60}ms both` }}
+      onMouseEnter={e => { e.currentTarget.style.transform='translateY(-6px)'; e.currentTarget.style.boxShadow='0 20px 48px rgba(26,8,0,0.12)'; e.currentTarget.style.borderColor=C.pBorder; }}
+      onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='none'; e.currentTarget.style.borderColor=C.border; }}
+    >
+      <div style={{ position:'relative', height:200, background:'#f0ebe4', overflow:'hidden', flexShrink:0 }}>
+        {img
+          ? <img src={img} alt={p.title} style={{ width:'100%', height:'100%', objectFit:'cover', transition:'transform 0.6s ease' }} onMouseEnter={e=>e.target.style.transform='scale(1.07)'} onMouseLeave={e=>e.target.style.transform='scale(1)'}/>
+          : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:48 }}>🏠</div>
+        }
+        <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(26,8,0,0.45) 0%, transparent 55%)' }} />
+        <div style={{ position:'absolute', top:12, left:12, display:'flex', alignItems:'center', gap:5, background:'rgba(255,255,255,0.96)', backdropFilter:'blur(8px)', borderRadius:99, padding:'5px 12px', fontSize:11, fontWeight:700, color:C.text, fontFamily:C.sans, boxShadow:'0 2px 8px rgba(0,0,0,0.1)' }}>
+          <span style={{ width:7, height:7, borderRadius:'50%', background:dot }} /> {p.type}
+        </div>
+        <button onClick={e => { e.stopPropagation(); onWish(p.id); }}
+          style={{ position:'absolute', top:12, right:12, width:34, height:34, borderRadius:'50%', background:'rgba(255,255,255,0.96)', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'transform 0.2s', boxShadow:'0 2px 8px rgba(0,0,0,0.1)' }}
+          onMouseEnter={e=>e.currentTarget.style.transform='scale(1.15)'} onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
+          <Heart size={15} fill={wished?'#ef4444':'none'} color={wished?'#ef4444':C.muted} />
+        </button>
+        <div style={{ position:'absolute', bottom:12, left:12, right:12, display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
+          <div>
+            <p style={{ color:'rgba(255,255,255,0.7)', fontSize:10, fontWeight:600, fontFamily:C.sans, marginBottom:2 }}>
+              {!isLand && p.purpose ? (p.purpose==='SALE' ? t('forSale').toUpperCase() : t('forRent').toUpperCase()) : t('price').toUpperCase()}
             </p>
+            <p style={{ color:'#fff', fontFamily:C.serif, fontWeight:700, fontSize:20, lineHeight:1 }}>{fmt(p.price)}</p>
           </div>
-
-          {/* Search Bar */}
-          <div className="relative mb-6">
-            <div className="bg-white rounded-3xl shadow-2xl p-3 flex items-center space-x-3">
-              <Search className="h-6 w-6 text-gray-400 ml-3" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAISearch()}
-                placeholder="Try: '3BHK villa with pool under 1 crore in Alkapuri'"
-                className="flex-1 bg-transparent border-none outline-none text-gray-900 text-lg placeholder-gray-400"
-              />
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="p-3 bg-gray-100 hover:bg-gray-200 rounded-2xl transition-colors"
-              >
-                <Sliders className="h-6 w-6 text-gray-700" />
-              </button>
-              <button
-                onClick={handleAISearch}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-2xl font-semibold hover:shadow-lg transition-all"
-              >
-                Search
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Searches */}
-          <div className="flex flex-wrap gap-3 justify-center">
-            {quickSearches.map((query, i) => (
-              <button
-                key={i}
-                onClick={() => handleQuickSearch(query)}
-                className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-4 py-2 rounded-xl hover:bg-white/20 transition-all text-sm"
-              >
-                {query}
-              </button>
-            ))}
-          </div>
-
-          {/* AI Suggestions */}
-          {aiSuggestions.length > 0 && (
-            <div className="mt-6 bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <Sparkles className="h-5 w-5 text-yellow-400" />
-                <h3 className="text-white font-bold">AI Insights</h3>
-              </div>
-              <div className="space-y-2">
-                {aiSuggestions.map((suggestion, i) => (
-                  <div key={i} className="flex items-start space-x-2 text-gray-300 text-sm">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full mt-1.5"></div>
-                    <span>{suggestion}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {p.status === 'AVAILABLE' && (
+            <span style={{ display:'flex', alignItems:'center', gap:5, background:'#16a34a', color:'#fff', fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:99, fontFamily:C.sans }}>
+              <span style={{ width:5, height:5, borderRadius:'50%', background:'rgba(255,255,255,0.8)', animation:'pulse 1.5s ease-in-out infinite' }} /> {t('available').toUpperCase()}
+            </span>
           )}
         </div>
       </div>
-
-      {/* Filters Panel */}
-      {showFilters && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gradient-to-br from-slate-900 to-purple-900 rounded-3xl border border-white/20 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-white/10 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-white">Advanced Filters</h2>
-              <button
-                onClick={() => setShowFilters(false)}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X className="h-6 w-6 text-white" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Price Range */}
-              <div>
-                <label className="block text-white font-semibold mb-3">Price Range</label>
-                <div className="grid grid-cols-2 gap-4">
-                  <input
-                    type="number"
-                    placeholder="Min Price"
-                    value={filters.minPrice}
-                    onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
-                    className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Max Price"
-                    value={filters.maxPrice}
-                    onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
-                    className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              {/* Property Type */}
-              <div>
-                <label className="block text-white font-semibold mb-3">Property Type</label>
-                <div className="grid grid-cols-4 gap-3">
-                  {['all', 'Villa', 'Apartment', 'Commercial'].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setFilters({ ...filters, propertyType: type })}
-                      className={`px-4 py-3 rounded-xl font-semibold transition-all ${
-                        filters.propertyType === type
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white/10 text-white hover:bg-white/20'
-                      }`}
-                    >
-                      {type === 'all' ? 'All' : type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bedrooms */}
-              <div>
-                <label className="block text-white font-semibold mb-3">Bedrooms</label>
-                <div className="grid grid-cols-5 gap-3">
-                  {['Any', '1', '2', '3', '4+'].map((beds) => (
-                    <button
-                      key={beds}
-                      onClick={() => setFilters({ ...filters, bedrooms: beds })}
-                      className={`px-4 py-3 rounded-xl font-semibold transition-all ${
-                        filters.bedrooms === beds
-                          ? 'bg-purple-500 text-white'
-                          : 'bg-white/10 text-white hover:bg-white/20'
-                      }`}
-                    >
-                      {beds}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Amenities */}
-              <div>
-                <label className="block text-white font-semibold mb-3">Amenities</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {amenitiesList.map((amenity) => (
-                    <button
-                      key={amenity}
-                      onClick={() => toggleAmenity(amenity)}
-                      className={`px-4 py-3 rounded-xl font-semibold transition-all ${
-                        filters.amenities.includes(amenity)
-                          ? 'bg-green-500 text-white'
-                          : 'bg-white/10 text-white hover:bg-white/20'
-                      }`}
-                    >
-                      {amenity}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Apply Button */}
-              <button
-                onClick={() => {
-                  setShowFilters(false);
-                  handleAISearch();
-                }}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg hover:shadow-lg transition-all"
-              >
-                Apply Filters
-              </button>
-            </div>
-          </div>
+      <div style={{ padding:'16px 20px', flex:1, display:'flex', flexDirection:'column' }}>
+        <p style={{ fontFamily:C.serif, fontWeight:700, fontSize:15, color:C.text, margin:'0 0 5px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.title}</p>
+        <div style={{ display:'flex', alignItems:'center', gap:5, color:C.muted, fontSize:12, marginBottom:12, fontFamily:C.sans }}>
+          <MapPin size={12} /> {[p.city, p.state].filter(Boolean).join(', ') || 'Vadodara'}
         </div>
-      )}
-
-      {/* Results */}
-      <div className="max-w-7xl mx-auto px-4 pb-20">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-bold text-white">
-            Search Results ({properties.length})
-          </h2>
-          <div className="flex items-center space-x-3">
-            <select className="bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option>Best Match</option>
-              <option>Price: Low to High</option>
-              <option>Price: High to Low</option>
-              <option>Newest First</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {properties.map((property) => (
-            <div
-              key={property.id}
-              className="group relative bg-white/5 backdrop-blur-2xl rounded-3xl overflow-hidden border border-white/10 hover:border-white/30 transition-all duration-300"
-            >
-              {/* AI Match Score */}
-              <div className="absolute top-4 left-4 z-10 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center space-x-1">
-                <TrendingUp className="h-4 w-4" />
-                <span>{property.score}% Match</span>
-              </div>
-
-              {/* Like Button */}
-              <button className="absolute top-4 right-4 z-10 p-2 bg-white/20 backdrop-blur-xl rounded-full hover:bg-white/30 transition-all">
-                <Heart className="h-5 w-5 text-white" />
-              </button>
-
-              {/* Image */}
-              <div className="relative h-64 overflow-hidden">
-                <img
-                  src={property.image}
-                  alt={property.title}
-                  className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-              </div>
-
-              {/* Content */}
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-white mb-2">{property.title}</h3>
-                
-                <div className="flex items-center text-gray-400 text-sm mb-4">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  {property.location}
-                </div>
-
-                <div className="flex items-center justify-between text-white text-sm mb-4">
-                  {property.beds && (
-                    <div className="flex items-center space-x-1">
-                      <Bed className="h-4 w-4" />
-                      <span>{property.beds}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center space-x-1">
-                    <Bath className="h-4 w-4" />
-                    <span>{property.baths}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Square className="h-4 w-4" />
-                    <span>{property.area} sqft</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                  <div className="flex items-center text-green-400 font-bold text-lg">
-                    <IndianRupee className="h-5 w-5" />
-                    <span>{(property.price / 10000000).toFixed(2)}Cr</span>
-                  </div>
-                  <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-xl font-semibold hover:shadow-lg transition-all">
-                    View
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {p.area && <span style={{ display:'flex', alignItems:'center', gap:4, background:C.bg, border:`1px solid ${C.border}`, borderRadius:8, padding:'4px 10px', fontSize:11, fontWeight:600, color:C.sub, fontFamily:C.sans }}><Square size={10}/> {p.area?.toLocaleString()} {t('sqft')}</span>}
+          {!isLand && p.bedrooms && <span style={{ display:'flex', alignItems:'center', gap:4, background:C.bg, border:`1px solid ${C.border}`, borderRadius:8, padding:'4px 10px', fontSize:11, fontWeight:600, color:C.sub, fontFamily:C.sans }}><Bed size={10}/> {p.bedrooms} BHK</span>}
+          {!isLand && p.bathrooms && <span style={{ display:'flex', alignItems:'center', gap:4, background:C.bg, border:`1px solid ${C.border}`, borderRadius:8, padding:'4px 10px', fontSize:11, fontWeight:600, color:C.sub, fontFamily:C.sans }}><Bath size={10}/> {p.bathrooms}</span>}
         </div>
       </div>
     </div>
   );
 };
 
-export default AIPropertySearch;
+export default function AIPropertySearch() {
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+  const [params]     = useSearchParams();
+  const [query,        setQuery]      = useState(params.get('search') || '');
+  const [properties,   setProperties] = useState([]);
+  const [loading,      setLoading]    = useState(true);
+  const [showFilters,  setShowFilters]= useState(false);
+  const [wished,       setWished]     = useState(new Set());
+  const [filters,      setFilters]    = useState({ type:'all', purpose:'all', minPrice:'', maxPrice:'', bedrooms:'' });
+  const [hint,         setHint]       = useState('');
+
+  const fetchProperties = useCallback(async () => {
+    setLoading(true); setHint('');
+    try {
+      const res = await propertyAPI.getAll({ search: query, limit: 50 });
+      let list = res.data?.properties || [];
+      if (filters.type !== 'all')    list = list.filter(p => p.type === filters.type);
+      if (filters.purpose !== 'all') list = list.filter(p => p.purpose === filters.purpose);
+      if (filters.minPrice) list = list.filter(p => p.price >= Number(filters.minPrice));
+      if (filters.maxPrice) list = list.filter(p => p.price <= Number(filters.maxPrice));
+      if (filters.bedrooms) { const b = parseInt(filters.bedrooms); list = list.filter(p => p.bedrooms >= b); }
+      setProperties(list);
+      if (query) setHint(`${list.length} ${t('noResults') !== 'No results found' ? '' : 'results'} "${query}"`);
+    } catch { setProperties([]); }
+    finally { setLoading(false); }
+  }, [query, filters]);
+
+  useEffect(() => { fetchProperties(); }, [fetchProperties]);
+
+  const toggleWish = (id) => setWished(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const selStyle = { background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:'9px 12px', fontSize:13, color:C.text, fontFamily:C.sans, outline:'none', cursor:'pointer' };
+
+  return (
+    <div style={{ background:C.bg, minHeight:'100vh', fontFamily:C.sans }}>
+      <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:'-30%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle, rgba(200,75,0,0.06) 0%, transparent 65%)', pointerEvents:'none' }} />
+
+        <div style={{ maxWidth:800, margin:'0 auto', padding:'20px 20px 0' }}>
+          <button onClick={() => navigate(-1)}
+            style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', color:C.muted, fontSize:13, fontWeight:600, fontFamily:C.sans, padding:0 }}
+            onMouseEnter={e => e.currentTarget.style.color=C.primary}
+            onMouseLeave={e => e.currentTarget.style.color=C.muted}>
+            <ArrowLeft size={15}/> {t('back')}
+          </button>
+        </div>
+
+        <div style={{ maxWidth:800, margin:'0 auto', padding:'32px 20px 40px', textAlign:'center', position:'relative' }}>
+          <div style={{ display:'inline-flex', alignItems:'center', gap:7, background:C.pLight, border:`1px solid ${C.pBorder}`, borderRadius:99, padding:'7px 18px', marginBottom:20, animation:'fadeIn 0.5s ease' }}>
+            <Sparkles size={13} color={C.primary} />
+            <span style={{ color:C.primary, fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', fontFamily:C.sans }}>Smart Property Search · Rudra Real Estate</span>
+          </div>
+          <h1 style={{ fontFamily:C.serif, fontSize:'clamp(2rem,5vw,3.2rem)', color:C.text, fontWeight:700, marginBottom:12, lineHeight:1.15, animation:'slideUp 0.6s ease 0.1s both' }}>
+            {t('findLawyer') !== 'Find a Lawyer' ? t('searchBtn') : 'Find Your'} <em style={{ fontStyle:'italic', color:C.primary }}>{t('heroTitle2') || 'Perfect Property'}</em>
+          </h1>
+          <p style={{ color:C.sub, fontSize:15, fontFamily:C.serif, marginBottom:32, animation:'slideUp 0.6s ease 0.2s both' }}>
+            {t('heroSubtitle')}
+          </p>
+
+          <div style={{ display:'flex', alignItems:'center', background:C.bg, border:`2px solid ${query?C.pBorder:C.border}`, borderRadius:18, overflow:'hidden', maxWidth:580, margin:'0 auto 16px', boxShadow:'0 2px 12px rgba(26,8,0,0.04)', transition:'border 0.2s', animation:'slideUp 0.6s ease 0.3s both' }}>
+            <div style={{ flex:1, display:'flex', alignItems:'center', padding:'0 16px', gap:8 }}>
+              <Search size={18} color={C.muted} style={{ flexShrink:0 }} />
+              <input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&fetchProperties()}
+                placeholder={t('searchPlaceholder')}
+                style={{ flex:1, border:'none', outline:'none', fontSize:14, color:C.text, padding:'14px 0', background:'transparent', fontFamily:C.sans }} />
+              {query && <button onClick={()=>setQuery('')} style={{ background:'none', border:'none', cursor:'pointer', color:C.muted, lineHeight:0 }}><X size={16}/></button>}
+            </div>
+            <button onClick={()=>setShowFilters(v=>!v)} style={{ padding:'0 14px', background:'none', border:'none', borderLeft:`1px solid ${C.border}`, cursor:'pointer', color:showFilters?C.primary:C.muted, transition:'color 0.2s' }}>
+              <SlidersHorizontal size={18} />
+            </button>
+            <button onClick={fetchProperties} style={{ background:C.primary, color:'#fff', border:'none', padding:'0 28px', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:C.sans, height:'100%', minHeight:50 }}>
+              {t('searchBtn')}
+            </button>
+          </div>
+
+          {hint && <p style={{ marginTop:16, fontSize:13, color:C.muted, fontFamily:C.sans, animation:'fadeIn 0.4s ease' }}><span style={{ color:C.primary, fontWeight:700 }}>✦</span> {hint}</p>}
+        </div>
+      </div>
+
+      {showFilters && (
+        <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, animation:'slideDown 0.25s ease' }}>
+          <div style={{ maxWidth:900, margin:'0 auto', padding:'16px 20px' }}>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
+              <select value={filters.type} onChange={e=>setFilters({...filters,type:e.target.value})} style={selStyle}>
+                <option value="all">{t('all')} {t('type')}</option>
+                {['RESIDENTIAL','COMMERCIAL','AGRICULTURAL','LAND','INDUSTRIAL'].map(tp=><option key={tp} value={tp}>{tp}</option>)}
+              </select>
+              <select value={filters.purpose} onChange={e=>setFilters({...filters,purpose:e.target.value})} style={selStyle}>
+                <option value="all">{t('forBuy')} / {t('forRent')}</option>
+                <option value="SALE">{t('forSale')}</option>
+                <option value="RENT">{t('forRent')}</option>
+              </select>
+              <input type="number" placeholder={`Min ₹`} value={filters.minPrice} onChange={e=>setFilters({...filters,minPrice:e.target.value})} style={{...selStyle,width:110}} />
+              <input type="number" placeholder={`Max ₹`} value={filters.maxPrice} onChange={e=>setFilters({...filters,maxPrice:e.target.value})} style={{...selStyle,width:110}} />
+              <select value={filters.bedrooms} onChange={e=>setFilters({...filters,bedrooms:e.target.value})} style={selStyle}>
+                <option value="">{t('bedrooms')}</option>
+                {['1','2','3','4'].map(b=><option key={b} value={b}>{b}+ BHK</option>)}
+              </select>
+              <button onClick={()=>setFilters({type:'all',purpose:'all',minPrice:'',maxPrice:'',bedrooms:''})} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:12, padding:'9px 16px', fontSize:12, cursor:'pointer', color:C.muted, fontFamily:C.sans }}>{t('clearFilters')}</button>
+              <button onClick={()=>{setShowFilters(false);fetchProperties();}} style={{ background:C.primary, color:'#fff', border:'none', borderRadius:12, padding:'9px 20px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:C.sans, marginLeft:'auto', boxShadow:'0 4px 14px rgba(200,75,0,0.25)' }}>{t('filter')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ maxWidth:1200, margin:'0 auto', padding:'36px 20px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+          <h2 style={{ fontFamily:C.serif, fontSize:22, fontWeight:700, color:C.text, margin:0 }}>
+            {loading ? `${t('loading')}` : <>{properties.length} <em style={{ color:C.primary, fontStyle:'italic' }}>{t('properties')}</em></>}
+          </h2>
+        </div>
+
+        {loading ? (
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'80px 0', gap:16 }}>
+            <div style={{ width:56, height:56, borderRadius:20, background:C.pLight, display:'flex', alignItems:'center', justifyContent:'center', animation:'searchPulse 1s ease-in-out infinite' }}>
+              <Search size={24} color={C.primary} />
+            </div>
+            <p style={{ color:C.muted, fontSize:14, fontFamily:C.sans }}>{t('loading')}</p>
+          </div>
+        ) : properties.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'80px 20px' }}>
+            <div style={{ width:64, height:64, borderRadius:20, background:C.pLight, border:`1px solid ${C.pBorder}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+              <Flame size={28} color={C.primary} />
+            </div>
+            <p style={{ fontFamily:C.serif, fontSize:20, fontWeight:700, color:C.text, marginBottom:8 }}>{t('noPropsFound')}</p>
+            <p style={{ color:C.muted, fontSize:14, fontFamily:C.sans }}>{t('noPropsSubtitle')}</p>
+          </div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px,1fr))', gap:22 }}>
+            {properties.map((p, i) => <ResultCard key={p.id} p={p} index={i} wished={wished.has(p.id)} onWish={toggleWish} t={t} />)}
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+        @keyframes fadeIn      { from{opacity:0} to{opacity:1} }
+        @keyframes slideUp     { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideDown   { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulse       { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        @keyframes cardReveal  { from{opacity:0;transform:translateY(24px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes searchPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.1);opacity:0.7} }
+      `}</style>
+    </div>
+  );
+}

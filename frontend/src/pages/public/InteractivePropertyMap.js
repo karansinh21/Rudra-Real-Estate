@@ -1,371 +1,520 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, Home, IndianRupee, X, Navigation, Search, Filter, Maximize2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { MapPin, Search, Loader2, ArrowUpRight, X } from 'lucide-react';
+import { propertyAPI } from '../../services/api';
 
-const InteractivePropertyMap = () => {
-  const [selectedProperty, setSelectedProperty] = useState(null);
-  const [mapCenter, setMapCenter] = useState({ lat: 22.3072, lng: 73.1812 });
-  const [zoom, setZoom] = useState(13);
-  const [filters, setFilters] = useState({ type: 'all', priceRange: 'all' });
-  const [searchTerm, setSearchTerm] = useState('');
+const C = {
+  bg: '#F9F6F2', card: '#FFFFFF', border: '#EDE8E3',
+  primary: '#C84B00', pLight: '#FEF3EE', pBorder: 'rgba(200,75,0,0.15)',
+  text: '#1A0800', sub: '#6B5748', muted: '#9C8B7A',
+  serif: 'Georgia, "Times New Roman", serif',
+  sans: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
+};
 
-  const properties = [
-    {
-      id: 1,
-      title: 'Luxury Villa',
-      location: 'Alkapuri',
-      price: 12500000,
-      type: 'Villa',
-      coordinates: { lat: 22.3072, lng: 73.1812 },
-      image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=400',
-      beds: 4,
-      baths: 3,
-      area: 2500
-    },
-    {
-      id: 2,
-      title: 'Modern Apartment',
-      location: 'Race Course',
-      price: 6500000,
-      type: 'Apartment',
-      coordinates: { lat: 22.2950, lng: 73.1900 },
-      image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400',
-      beds: 3,
-      baths: 2,
-      area: 1800
-    },
-    {
-      id: 3,
-      title: 'Commercial Space',
-      location: 'Gotri',
-      price: 8500000,
-      type: 'Commercial',
-      coordinates: { lat: 22.2850, lng: 73.1650 },
-      image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400',
-      beds: null,
-      baths: 2,
-      area: 3000
-    },
-    {
-      id: 4,
-      title: 'Penthouse Suite',
-      location: 'Manjalpur',
-      price: 15000000,
-      type: 'Penthouse',
-      coordinates: { lat: 22.3150, lng: 73.2000 },
-      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400',
-      beds: 5,
-      baths: 4,
-      area: 3500
-    }
-  ];
+const fmt = p => {
+  if (!p) return '–';
+  if (p >= 10000000) return `₹${(p / 10000000).toFixed(1)} Cr`;
+  if (p >= 100000)   return `₹${(p / 100000).toFixed(1)} L`;
+  return `₹${Number(p).toLocaleString('en-IN')}`;
+};
 
-  // Simple map visualization
-  const MapCanvas = () => {
-    const canvasRef = React.useRef(null);
+const getImg = p => {
+  try {
+    const imgs = typeof p.images === 'string' ? JSON.parse(p.images) : p.images;
+    if (Array.isArray(imgs) && imgs.length)
+      return typeof imgs[0] === 'string' ? imgs[0] : imgs[0]?.url;
+  } catch {}
+  return null;
+};
 
-    useEffect(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+// Vadodara area coordinates
+const AREA_COORDS = {
+  alkapuri:    { lat: 22.3072, lng: 73.1812 },
+  'race course': { lat: 22.2950, lng: 73.1900 },
+  gotri:       { lat: 22.2850, lng: 73.1650 },
+  manjalpur:   { lat: 22.2700, lng: 73.1800 },
+  waghodia:    { lat: 22.3300, lng: 73.2500 },
+  sama:        { lat: 22.3200, lng: 73.2200 },
+  gorwa:       { lat: 22.3350, lng: 73.1700 },
+  fatehgunj:   { lat: 22.3100, lng: 73.1900 },
+  karelibaug:  { lat: 22.3050, lng: 73.2100 },
+  padra:       { lat: 22.2355, lng: 73.0856 },
+  karjan:      { lat: 22.0494, lng: 73.1228 },
+  halol:       { lat: 22.5016, lng: 73.4724 },
+  vadodara:    { lat: 22.3072, lng: 73.1812 },
+};
 
-      const ctx = canvas.getContext('2d');
-      const width = canvas.width;
-      const height = canvas.height;
-
-      // Clear canvas
-      ctx.clearRect(0, 0, width, height);
-
-      // Draw map background (grid)
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.1)';
-      ctx.lineWidth = 1;
-      
-      for (let i = 0; i < width; i += 50) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, height);
-        ctx.stroke();
-      }
-      
-      for (let i = 0; i < height; i += 50) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(width, i);
-        ctx.stroke();
-      }
-
-      // Draw roads
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 3;
-      
-      // Horizontal roads
-      [150, 300, 450].forEach(y => {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      });
-      
-      // Vertical roads
-      [200, 400, 600].forEach(x => {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      });
-
-      // Convert coordinates to canvas position
-      const toCanvasPos = (coords) => {
-        const latRange = 0.05;
-        const lngRange = 0.05;
-        const x = ((coords.lng - (mapCenter.lng - lngRange / 2)) / lngRange) * width;
-        const y = ((mapCenter.lat + latRange / 2 - coords.lat) / latRange) * height;
-        return { x, y };
-      };
-
-      // Draw property pins
-      properties.forEach(property => {
-        const pos = toCanvasPos(property.coordinates);
-        
-        // Pin shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.ellipse(pos.x, pos.y + 25, 8, 3, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Pin body
-        const isSelected = selectedProperty?.id === property.id;
-        ctx.fillStyle = isSelected ? '#ef4444' : '#3b82f6';
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 12, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Pin outline
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Pin point
-        ctx.fillStyle = isSelected ? '#ef4444' : '#3b82f6';
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y + 12);
-        ctx.lineTo(pos.x - 6, pos.y + 22);
-        ctx.lineTo(pos.x + 6, pos.y + 22);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = 'white';
-        ctx.stroke();
-
-        // Ripple effect for selected property
-        if (isSelected) {
-          ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 20, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      });
-
-    }, [selectedProperty]);
-
-    return (
-      <canvas
-        ref={canvasRef}
-        width={800}
-        height={600}
-        className="w-full h-full cursor-pointer"
-        onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          const y = e.clientY - rect.top;
-          
-          // Check if clicked on a property pin
-          properties.forEach(property => {
-            const latRange = 0.05;
-            const lngRange = 0.05;
-            const width = 800;
-            const height = 600;
-            const px = ((property.coordinates.lng - (mapCenter.lng - lngRange / 2)) / lngRange) * width;
-            const py = ((mapCenter.lat + latRange / 2 - property.coordinates.lat) / latRange) * height;
-            
-            const distance = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
-            if (distance < 20) {
-              setSelectedProperty(property);
-            }
-          });
-        }}
-      />
-    );
+const getCoords = p => {
+  if (p.latitude && p.longitude) return { lat: +p.latitude, lng: +p.longitude };
+  const key = (p.city || p.address || '').toLowerCase();
+  for (const [k, v] of Object.entries(AREA_COORDS))
+    if (key.includes(k)) return v;
+  return {
+    lat: 22.3072 + (Math.random() - 0.5) * 0.08,
+    lng: 73.1812 + (Math.random() - 0.5) * 0.10,
   };
+};
+
+const TYPE_CLR = {
+  RESIDENTIAL: '#7c3aed', COMMERCIAL: '#C84B00',
+  AGRICULTURAL: '#059669', LAND: '#16a34a', INDUSTRIAL: '#d97706',
+};
+
+const TYPE_ICON = {
+  RESIDENTIAL: '🏠', COMMERCIAL: '🏢',
+  AGRICULTURAL: '🌾', LAND: '🗺️', INDUSTRIAL: '🏭',
+};
+
+export default function InteractivePropertyMap() {
+  const navigate   = useNavigate();
+  const location   = useLocation();
+  const focusId    = new URLSearchParams(location.search).get('id');
+  const mapRef     = useRef(null);
+  const leafletRef = useRef(null);
+  const markersRef = useRef([]);
+
+  const [properties, setProperties] = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [selected,   setSelected]   = useState(null);
+  const [search,     setSearch]     = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [leafletReady, setLeafletReady] = useState(false);
+
+  // Load Leaflet CSS + JS
+  useEffect(() => {
+    if (document.getElementById('leaflet-css')) { 
+      setLeafletReady(true); 
+      return; 
+    }
+
+    const link = document.createElement('link');
+    link.id = 'leaflet-css';
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => setLeafletReady(true);
+    document.head.appendChild(script);
+  }, []);
+
+  // Fetch properties
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await propertyAPI.getAll({ limit: 100 });
+        const props = (res.data?.properties || []).map(p => ({
+          ...p,
+          coords: getCoords(p),
+        }));
+        setProperties(props);
+      } catch { 
+        setProperties([]); 
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Auto-focus on property from URL param
+  useEffect(() => {
+    if (!focusId || !properties.length) return;
+    const prop = properties.find(p => p.id === focusId);
+    if (prop) {
+      setSelected(prop);
+      if (leafletRef.current) {
+        leafletRef.current.flyTo([prop.coords.lat, prop.coords.lng], 15, { duration: 0.8 });
+      }
+    }
+  }, [focusId, properties]);
+
+  // Initialize Leaflet map
+  useEffect(() => {
+    if (!leafletReady || !mapRef.current || leafletRef.current) return;
+    const L = window.L;
+
+    const map = L.map(mapRef.current, {
+      center: [22.3072, 73.1812],
+      zoom: 12,
+      zoomControl: true,
+    });
+
+    // OpenStreetMap tiles (FREE - No API key needed!)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    leafletRef.current = map;
+  }, [leafletReady]);
+
+  // Add/update markers
+  useEffect(() => {
+    if (!leafletReady || !leafletRef.current) return;
+    const L = window.L;
+    const map = leafletRef.current;
+
+    // Remove old markers
+    markersRef.current.forEach(m => map.removeLayer(m));
+    markersRef.current = [];
+
+    const visible = properties.filter(p => {
+      if (typeFilter !== 'all' && p.type !== typeFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return p.title?.toLowerCase().includes(q) || p.city?.toLowerCase().includes(q);
+      }
+      return true;
+    });
+
+    if (!visible.length) return;
+
+    visible.forEach(p => {
+      const color = TYPE_CLR[p.type] || C.muted;
+      const icon  = TYPE_ICON[p.type] || '🏠';
+
+      // Custom marker
+      const svgIcon = L.divIcon({
+        className: '',
+        iconSize: [36, 44],
+        iconAnchor: [18, 44],
+        popupAnchor: [0, -44],
+        html: `
+          <div style="position:relative;width:36px;height:44px">
+            <svg width="36" height="44" viewBox="0 0 36 44" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 26 18 26S36 31.5 36 18C36 8.06 27.94 0 18 0z"
+                fill="${color}" stroke="white" stroke-width="2"/>
+              <circle cx="18" cy="18" r="10" fill="white" opacity="0.9"/>
+            </svg>
+            <div style="position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:14px;line-height:1">${icon}</div>
+          </div>`,
+      });
+
+      const marker = L.marker([p.coords.lat, p.coords.lng], { icon: svgIcon });
+
+      // Popup
+      const img = getImg(p);
+      marker.bindPopup(`
+        <div style="font-family:'DM Sans',sans-serif;min-width:200px;padding:0">
+          ${img ? `<img src="${img}" style="width:100%;height:110px;object-fit:cover;border-radius:8px 8px 0 0;display:block"/>` : ''}
+          <div style="padding:10px 12px">
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+              <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
+              <span style="font-size:10px;color:#9C8B7A;font-weight:600;text-transform:uppercase">${p.type}</span>
+            </div>
+            <p style="font-size:13px;font-weight:700;color:#1A0800;margin:0 0 4px;line-height:1.3">${p.title}</p>
+            <p style="font-size:11px;color:#9C8B7A;margin:0 0 8px;display:flex;align-items:center;gap:3px">
+              📍 ${p.city || 'Vadodara'}
+            </p>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:15px;font-weight:700;color:${color}">${fmt(p.price)}</span>
+              <a href="/property/${p.id}"
+                style="background:#1A0800;color:#fff;padding:5px 11px;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+                View →
+              </a>
+            </div>
+          </div>
+        </div>`, {
+        maxWidth: 240,
+        minWidth: 200,
+        className: 'rudra-popup',
+      });
+
+      marker.on('click', () => setSelected(p));
+      marker.addTo(map);
+      markersRef.current.push(marker);
+    });
+
+    // Fit bounds
+    if (visible.length > 0) {
+      const bounds = L.latLngBounds(visible.map(p => [p.coords.lat, p.coords.lng]));
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    }
+  }, [properties, typeFilter, search, leafletReady]);
+
+  const filtered = properties.filter(p => {
+    if (typeFilter !== 'all' && p.type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return p.title?.toLowerCase().includes(q) || p.city?.toLowerCase().includes(q);
+    }
+    return true;
+  });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <div className="flex h-screen">
-        {/* Sidebar */}
-        <div className="w-96 bg-black/40 backdrop-blur-2xl border-r border-white/10 overflow-y-auto">
-          <div className="p-6 space-y-6">
-            {/* Header */}
+    <div style={{ background: C.bg, height: '100vh', display: 'flex',
+      flexDirection: 'column', fontFamily: C.sans }}>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+        .rudra-popup .leaflet-popup-content-wrapper {
+          border-radius: 16px !important;
+          padding: 0 !important;
+          overflow: hidden;
+          box-shadow: 0 12px 40px rgba(26,8,0,0.15) !important;
+          border: 1px solid #EDE8E3;
+        }
+        .rudra-popup .leaflet-popup-content { margin: 0 !important; width: auto !important; }
+        .rudra-popup .leaflet-popup-tip { background: #fff !important; }
+        .leaflet-control-attribution { font-size: 10px !important; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes sidebarIn { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`,
+        padding: '12px 20px', flexShrink: 0, animation: 'slideUp 0.4s ease' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 11, background: C.pLight,
+              border: `1px solid ${C.pBorder}`, display: 'flex',
+              alignItems: 'center', justifyContent: 'center' }}>
+              <MapPin size={17} color={C.primary} />
+            </div>
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Property Map</h1>
-              <p className="text-gray-400">Explore properties in Vadodara</p>
+              <h1 style={{ fontFamily: C.serif, fontSize: 18, fontWeight: 700,
+                color: C.text, margin: 0 }}>Property Map</h1>
+              <p style={{ color: C.muted, fontSize: 11, margin: 0 }}>
+                {loading ? 'Loading…' : (
+                  <><strong style={{ color: C.primary }}>{filtered.length}</strong> properties • OpenStreetMap</>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7,
+              background: C.bg, border: `1px solid ${C.border}`,
+              borderRadius: 11, padding: '7px 13px' }}>
+              <Search size={14} color={C.muted} />
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search city or title…"
+                style={{ border: 'none', outline: 'none', fontSize: 13,
+                  color: C.text, background: 'transparent', width: 150, fontFamily: C.sans }} />
+              {search && (
+                <button onClick={() => setSearch('')}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer',
+                    color: C.muted, padding: 0, lineHeight: 0 }}>
+                  <X size={13} />
+                </button>
+              )}
             </div>
 
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search location..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Filters */}
-            <div className="space-y-3">
-              <select
-                value={filters.type}
-                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Types</option>
-                <option value="Villa">Villa</option>
-                <option value="Apartment">Apartment</option>
-                <option value="Commercial">Commercial</option>
-              </select>
-
-              <select
-                value={filters.priceRange}
-                onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Prices</option>
-                <option value="low">Under 50L</option>
-                <option value="mid">50L - 1Cr</option>
-                <option value="high">Above 1Cr</option>
-              </select>
-            </div>
-
-            {/* Property List */}
-            <div className="space-y-4">
-              <h3 className="text-white font-semibold">Properties ({properties.length})</h3>
-              
-              {properties.map(property => (
-                <div
-                  key={property.id}
-                  onClick={() => setSelectedProperty(property)}
-                  className={`cursor-pointer rounded-2xl overflow-hidden transition-all duration-300 ${
-                    selectedProperty?.id === property.id
-                      ? 'bg-blue-500/20 border-2 border-blue-500'
-                      : 'bg-white/5 border border-white/10 hover:border-white/30'
-                  }`}
-                >
-                  <div className="flex items-center space-x-4 p-4">
-                    <img
-                      src={property.image}
-                      alt={property.title}
-                      className="w-20 h-20 rounded-xl object-cover"
-                    />
-                    <div className="flex-1">
-                      <h4 className="text-white font-semibold mb-1">{property.title}</h4>
-                      <div className="flex items-center text-gray-400 text-sm mb-2">
-                        <MapPin className="h-3 w-3 mr-1" />
-                        {property.location}
-                      </div>
-                      <div className="flex items-center text-green-400 font-bold">
-                        <IndianRupee className="h-4 w-4" />
-                        <span className="text-sm">{(property.price / 10000000).toFixed(2)}Cr</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 11,
+                padding: '7px 13px', fontSize: 13, color: C.text,
+                background: C.bg, outline: 'none', cursor: 'pointer', fontFamily: C.sans }}>
+              <option value="all">All Types</option>
+              {Object.entries(TYPE_ICON).map(([t, icon]) => (
+                <option key={t} value={t}>{icon} {t}</option>
               ))}
-            </div>
+            </select>
           </div>
         </div>
+      </div>
 
-        {/* Map Area */}
-        <div className="flex-1 relative">
-          {/* Map Controls */}
-          <div className="absolute top-6 right-6 z-10 space-y-3">
-            <button className="p-3 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 hover:bg-white/20 transition-all">
-              <Navigation className="h-6 w-6 text-white" />
-            </button>
-            <button className="p-3 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 hover:bg-white/20 transition-all">
-              <Maximize2 className="h-6 w-6 text-white" />
-            </button>
-            <button className="p-3 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 hover:bg-white/20 transition-all">
-              <Filter className="h-6 w-6 text-white" />
-            </button>
-          </div>
+      {/* Body */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-          {/* Map Canvas */}
-          <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900">
-            <MapCanvas />
-          </div>
-
-          {/* Property Info Card */}
-          {selectedProperty && (
-            <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-[500px] bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-              <button
-                onClick={() => setSelectedProperty(null)}
-                className="absolute top-4 right-4 p-2 bg-red-500 rounded-full hover:bg-red-600 transition-colors z-10"
-              >
-                <X className="h-5 w-5 text-white" />
-              </button>
-
-              <div className="flex">
-                <img
-                  src={selectedProperty.image}
-                  alt={selectedProperty.title}
-                  className="w-48 h-full object-cover"
-                />
-                <div className="flex-1 p-6">
-                  <h3 className="text-2xl font-bold text-white mb-2">{selectedProperty.title}</h3>
-                  <div className="flex items-center text-gray-300 mb-4">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {selectedProperty.location}
-                  </div>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center text-green-400 font-bold text-xl">
-                      <IndianRupee className="h-5 w-5" />
-                      <span>{(selectedProperty.price / 10000000).toFixed(2)}Cr</span>
-                    </div>
-                    <div className="flex space-x-4 text-white text-sm">
-                      {selectedProperty.beds && (
-                        <span>{selectedProperty.beds} Beds</span>
-                      )}
-                      <span>{selectedProperty.baths} Baths</span>
-                      <span>{selectedProperty.area} sqft</span>
-                    </div>
-                  </div>
-
-                  <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all">
-                    View Details
-                  </button>
-                </div>
+        {/* Sidebar */}
+        <div style={{ width: 290, background: C.card, borderRight: `1px solid ${C.border}`,
+          overflowY: 'auto', flexShrink: 0 }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center',
+              padding: 48, flexDirection: 'column', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 14, background: C.pLight,
+                border: `1px solid ${C.pBorder}`, display: 'flex',
+                alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 size={18} color={C.primary}
+                  style={{ animation: 'spin 1s linear infinite' }} />
               </div>
+              <p style={{ color: C.muted, fontSize: 13 }}>Loading properties…</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: '36px 16px',
+              color: C.muted, fontSize: 13 }}>No properties found</p>
+          ) : (
+            <div style={{ padding: '6px 0' }}>
+              {filtered.map((p, i) => {
+                const img = getImg(p);
+                const sel = selected?.id === p.id;
+                const isFocus = p.id === focusId;
+                const dot = TYPE_CLR[p.type] || C.muted;
+                return (
+                  <div key={p.id}
+                    onClick={() => {
+                      setSelected(sel ? null : p);
+                      if (!sel && leafletRef.current) {
+                        leafletRef.current.flyTo([p.coords.lat, p.coords.lng], 15, { duration: 0.8 });
+                      }
+                    }}
+                    style={{ display: 'flex', gap: 10, padding: '10px 14px',
+                      cursor: 'pointer', transition: 'all 0.2s',
+                      background: sel ? C.pLight : isFocus ? '#fffbf8' : 'transparent',
+                      borderLeft: `3px solid ${sel ? C.primary : isFocus ? '#f4a26a' : 'transparent'}`,
+                      animation: `sidebarIn 0.35s ease ${i * 25}ms both` }}
+                    onMouseEnter={e => { if (!sel) e.currentTarget.style.background = '#faf6f2'; }}
+                    onMouseLeave={e => { if (!sel) e.currentTarget.style.background = sel ? C.pLight : isFocus ? '#fffbf8' : 'transparent'; }}>
+                    <div style={{ width: 52, height: 46, borderRadius: 10,
+                      overflow: 'hidden', background: C.bg, flexShrink: 0 }}>
+                      {img
+                        ? <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex',
+                            alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                            {TYPE_ICON[p.type] || '🏠'}
+                          </div>
+                      }
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 700, fontSize: 12, color: C.text, margin: '0 0 2px',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        fontFamily: C.sans }}>
+                        {p.title}
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%',
+                          background: dot, flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, color: C.muted, fontFamily: C.sans }}>
+                          {p.type} · {p.city || 'Vadodara'}
+                        </span>
+                      </div>
+                      <p style={{ fontFamily: C.serif, fontWeight: 700, fontSize: 13,
+                        color: C.primary, margin: 0 }}>
+                        {fmt(p.price)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Map */}
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+
+          {/* Loading overlay */}
+          {(!leafletReady || loading) && (
+            <div style={{ position: 'absolute', inset: 0, background: '#F0EBE0',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', gap: 14, zIndex: 999 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 18, background: C.pLight,
+                border: `1px solid ${C.pBorder}`, display: 'flex',
+                alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 size={22} color={C.primary}
+                  style={{ animation: 'spin 1s linear infinite' }} />
+              </div>
+              <p style={{ color: C.muted, fontSize: 14, fontFamily: C.sans }}>
+                Loading map…
+              </p>
             </div>
           )}
 
           {/* Legend */}
-          <div className="absolute bottom-6 left-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4">
-            <h4 className="text-white font-semibold mb-3">Legend</h4>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                <span className="text-gray-300 text-sm">Available</span>
+          <div style={{ position: 'absolute', bottom: 28, left: 16, zIndex: 1000,
+            background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)',
+            borderRadius: 16, padding: '12px 16px', border: `1px solid ${C.border}`,
+            boxShadow: '0 4px 20px rgba(26,8,0,0.08)' }}>
+            <p style={{ fontWeight: 700, fontSize: 10, color: C.text, margin: '0 0 8px',
+              textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: C.sans }}>
+              Legend
+            </p>
+            {Object.entries(TYPE_CLR).map(([type, color]) => (
+              <div key={type} style={{ display: 'flex', alignItems: 'center',
+                gap: 7, marginBottom: 4 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%',
+                  background: color, flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: C.muted, fontFamily: C.sans }}>
+                  {TYPE_ICON[type]} {type}
+                </span>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-red-500 rounded-full"></div>
-                <span className="text-gray-300 text-sm">Selected</span>
+            ))}
+          </div>
+
+          {/* Selected card */}
+          {selected && (
+            <div style={{ position: 'absolute', bottom: 28, right: 16, zIndex: 1000,
+              width: 300, background: 'rgba(255,255,255,0.97)',
+              backdropFilter: 'blur(14px)', borderRadius: 22,
+              border: `1px solid ${C.pBorder}`,
+              boxShadow: '0 12px 40px rgba(200,75,0,0.15)', overflow: 'hidden',
+              animation: 'slideUp 0.35s cubic-bezier(.34,1.56,.64,1) both' }}>
+              <button onClick={() => setSelected(null)}
+                style={{ position: 'absolute', top: 10, right: 10, zIndex: 10,
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.9)', border: 'none',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center' }}>
+                <X size={14} color={C.muted} />
+              </button>
+              <div style={{ height: 140, overflow: 'hidden', background: C.bg }}>
+                {getImg(selected)
+                  ? <img src={getImg(selected)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{ width: '100%', height: '100%', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>
+                      {TYPE_ICON[selected.type] || '🏠'}
+                    </div>
+                }
+              </div>
+              <div style={{ padding: '14px 16px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%',
+                    background: TYPE_CLR[selected.type] || C.muted }} />
+                  <span style={{ fontSize: 11, color: C.muted, fontWeight: 600,
+                    fontFamily: C.sans }}>
+                    {selected.type}
+                  </span>
+                  {selected.id === focusId && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: C.primary,
+                      background: C.pLight, border: `1px solid ${C.pBorder}`,
+                      borderRadius: 6, padding: '1px 7px', marginLeft: 'auto' }}>
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontFamily: C.serif, fontWeight: 700, fontSize: 15,
+                  color: C.text, margin: '0 0 4px',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selected.title}
+                </p>
+                <p style={{ color: C.muted, fontSize: 12, margin: '0 0 12px',
+                  display: 'flex', alignItems: 'center', gap: 4, fontFamily: C.sans }}>
+                  <MapPin size={11} /> {selected.city || 'Vadodara'}
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontFamily: C.serif, fontWeight: 700,
+                    fontSize: 20, color: C.primary }}>
+                    {fmt(selected.price)}
+                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {selected.id === focusId && (
+                      <button onClick={() => navigate(-1)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4,
+                          background: C.bg, color: C.muted, border: `1px solid ${C.border}`,
+                          borderRadius: 10, padding: '8px 12px', fontSize: 11, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: C.sans }}>
+                        ← Back
+                      </button>
+                    )}
+                    <button onClick={() => navigate(`/property/${selected.id}`)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5,
+                        background: C.text, color: '#fff', border: 'none', borderRadius: 10,
+                        padding: '8px 14px', fontSize: 12, fontWeight: 700,
+                        cursor: 'pointer', fontFamily: C.sans, transition: 'background 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = C.primary}
+                      onMouseLeave={e => e.currentTarget.style.background = C.text}>
+                      View <ArrowUpRight size={12} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
-};
-
-export default InteractivePropertyMap;
+}

@@ -20,17 +20,18 @@ async function main() {
     // ✅ Create Users
     console.log('👥 Creating users...');
     
-    const adminPassword = await bcrypt.hash('admin123', 10);
+    const adminPassword = await bcrypt.hash('rudra123', 10);
     const admin = await prisma.user.create({
-      data: {
-        name: 'Admin User',
-        email: 'admin@rudra.com',
-        password: adminPassword,
-        phone: '9876543210',
-        role: 'ADMIN'
-      }
-    });
-    console.log('✅ Admin created:', admin.email);
+  data: {
+    name: 'JAYRAJSINH PADHIYAR',
+    email: 'rudrarealestate001@gmail.com',
+    password: adminPassword,
+    phone: '9316040778',
+    role: 'ADMIN'
+  }
+});
+
+console.log('✅ Admin created:', admin.email);
 
     const brokerPassword = await bcrypt.hash('broker123', 10);
     const broker = await prisma.user.create({
@@ -202,9 +203,9 @@ async function main() {
     console.log('═══════════════════════════════════════\n');
 
     console.log('🔑 Login Credentials:');
-    console.log('   Admin:  admin@rudra.com / admin123');
-    console.log('   Broker: broker@rudra.com / broker123');
-    console.log('   Lawyer: lawyer@rudra.com / lawyer123');
+console.log('   Admin:  rudrarealestate001@gmail.com / rudra123');
+console.log('   Broker: broker@rudra.com / broker123');
+console.log('   Lawyer: lawyer@rudra.com / lawyer123');
     console.log('═══════════════════════════════════════\n');
 
   } catch (error) {

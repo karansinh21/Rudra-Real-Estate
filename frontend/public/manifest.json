@@ -1,15 +1,32 @@
 {
-  "short_name": "Rudra Real Estate",
+  "short_name": "Rudra RE",
   "name": "Rudra Real Estate",
+  "description": "Vadodara's most trusted property platform — buy, sell, rent verified properties",
   "icons": [
     {
       "src": "favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
+    },
+    {
+      "src": "rudra-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "rudra-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "portrait",
+  "theme_color": "#C84B00",
+  "background_color": "#FAF8F5",
+  "categories": ["business", "lifestyle"],
+  "lang": "en-IN"
 }

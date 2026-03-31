@@ -1,462 +1,196 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../utils/AuthContext';
-import { User, Mail, Phone, MapPin, Lock, Bell, Shield, Camera, Save, CheckCircle, ArrowLeft } from 'lucide-react';
+import PublicLayout from './PublicLayout';
+import { useLanguage } from '../../utils/LanguageContext';
+import { User, Shield, Bell, Camera, Save, CheckCircle, AlertCircle, Loader2, Lock } from 'lucide-react';
+
+const DS = {
+  bg:'#F9F6F2', card:'#FFFFFF', border:'#EDE8E3',
+  primary:'#C84B00', primaryLight:'#FEF3EE', primaryBorder:'rgba(200,75,0,0.18)',
+  text:'#1A0800', textSub:'#6B5748', textMuted:'#9C8B7A',
+};
+
+const FieldInput = ({ label, disabled, textarea, rows=3, ...props }) => (
+  <div>
+    {label && <label style={{ display:'block', fontSize:11, fontWeight:700, color:DS.textMuted, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>{label}</label>}
+    {textarea
+      ? <textarea {...props} rows={rows} disabled={disabled} style={{ width:'100%', background:disabled?'#F5F0EB':DS.card, border:`1px solid ${DS.border}`, borderRadius:10, padding:'9px 12px', fontSize:14, color:disabled?DS.textMuted:DS.text, resize:'vertical', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}/>
+      : <input {...props} disabled={disabled} style={{ width:'100%', background:disabled?'#F5F0EB':DS.card, border:`1px solid ${DS.border}`, borderRadius:10, padding:'9px 12px', fontSize:14, color:disabled?DS.textMuted:DS.text, cursor:disabled?'not-allowed':'text', outline:'none', boxSizing:'border-box' }}/>}
+  </div>
+);
+
+const Toggle = ({ value, onChange }) => (
+  <button onClick={onChange} style={{ position:'relative', width:44, height:24, borderRadius:12, background:value?DS.primary:DS.border, border:'none', cursor:'pointer', transition:'background 0.2s', flexShrink:0 }}>
+    <div style={{ position:'absolute', top:3, left:value?23:3, width:18, height:18, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.2)', transition:'left 0.2s' }}/>
+  </button>
+);
 
 const PublicAccountSettings = () => {
   const { user, updateUser } = useAuth();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('profile');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [profileImage, setProfileImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const { t }                = useLanguage();
+  const fileRef              = useRef();
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    state: '',
-    role: ''
+  const [tab,     setTab]     = useState('profile');
+  const [saving,  setSaving]  = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [err,     setErr]     = useState('');
+  const [preview, setPreview] = useState(null);
+
+  const [form, setForm] = useState({ name:'', email:'', phone:'', city:'', state:'', address:'', role:'' });
+  const [pwd,  setPwd]  = useState({ current:'', next:'', confirm:'' });
+  const [notifs, setNotifs] = useState({
+    email:true, sms:false, push:true, newProperties:true, priceAlerts:true, tourReminders:true
   });
 
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
+  const NLABELS = {
+    email:t('email'), sms:'SMS', push:'Push Notifications',
+    newProperties:t('properties'), priceAlerts:`${t('price')} Alerts`, tourReminders:`${t('tours')} Reminders`
+  };
 
-  const [notifications, setNotifications] = useState({
-    email: true,
-    sms: false,
-    push: true,
-    newProperties: true,
-    priceAlerts: true,
-    tourReminders: true
-  });
+  const TABS = [
+    { id:'profile',       label:'Profile',       icon:User   },
+    { id:'security',      label:'Security',      icon:Shield },
+    { id:'notifications', label:'Notifications', icon:Bell   },
+  ];
 
-  // Load user data from AuthContext
   useEffect(() => {
     if (user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        address: user.address || '',
-        city: user.city || '',
-        state: user.state || '',
-        role: user.role || ''
-      });
-      
-      // Load profile image if exists
-      if (user.profileImage) {
-        setImagePreview(user.profileImage);
-      }
+      setForm({ name:user.name||'', email:user.email||'', phone:user.phone||'', city:user.city||'', state:user.state||'', address:user.address||'', role:user.role||'' });
+      if (user.profileImage) setPreview(user.profileImage);
     }
   }, [user]);
 
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell }
-  ];
+  const showSuccess = () => { setSuccess(true); setTimeout(() => setSuccess(false), 2500); };
 
-  // Handle image upload
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setProfileImage(file);
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
+  const save = async () => {
+    setSaving(true); setErr('');
+    try { updateUser({...form, profileImage:preview}); showSuccess(); }
+    catch { setErr(t('errorMsg')); }
+    finally { setSaving(false); }
   };
 
-  // Get initials for avatar
-  const getInitials = () => {
-    if (!formData.name) return 'U';
-    const names = formData.name.split(' ');
-    if (names.length >= 2) {
-      return (names[0][0] + names[1][0]).toUpperCase();
-    }
-    return names[0][0].toUpperCase();
-  };
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handlePasswordChange = (e) => {
-    setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    
+  const changePwd = async () => {
+    setErr('');
+    if (pwd.next!==pwd.confirm) { setErr(`${t('confirmPassword')} match nathi!`); return; }
+    if (pwd.next.length<6)      { setErr('Min 6 characters required.'); return; }
+    setSaving(true);
     try {
-      // Update user in AuthContext (localStorage)
-      updateUser({
-        ...formData,
-        profileImage: imagePreview
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/auth/change-password',{
+        method:'PUT', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+        body:JSON.stringify({currentPassword:pwd.current,newPassword:pwd.next}),
       });
-
-      // TODO: Send to backend API
-      // const token = localStorage.getItem('token');
-      // const response = await fetch('http://localhost:5000/api/auth/update-profile', {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${token}`
-      //   },
-      //   body: JSON.stringify(formData)
-      // });
-
-      setTimeout(() => {
-        setIsSaving(false);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-      }, 1000);
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      setIsSaving(false);
-    }
-  };
-
-  const handlePasswordSubmit = async () => {
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Passwords do not match!');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      alert('Password must be at least 6 characters');
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      // TODO: Send to backend API
-      // const token = localStorage.getItem('token');
-      // const response = await fetch('http://localhost:5000/api/auth/change-password', {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${token}`
-      //   },
-      //   body: JSON.stringify({
-      //     currentPassword: passwordData.currentPassword,
-      //     newPassword: passwordData.newPassword
-      //   })
-      // });
-
-      setTimeout(() => {
-        setPasswordData({
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
-        });
-        setIsSaving(false);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-      }, 1000);
-    } catch (error) {
-      console.error('Password change error:', error);
-      setIsSaving(false);
-    }
+      if (!res.ok) throw new Error('Failed');
+      setPwd({current:'',next:'',confirm:''}); showSuccess();
+    } catch { setErr(t('errorMsg')); }
+    finally { setSaving(false); }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 text-gray-300 hover:text-white mb-6 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back to Dashboard
-          </button>
-          <div className="text-center">
-            <h1 className="text-5xl font-bold text-white mb-4">Account Settings</h1>
-            <p className="text-xl text-gray-300">Manage your personal information and preferences</p>
-          </div>
-        </div>
+    <PublicLayout>
+      <div style={{ padding:'32px 36px', maxWidth:1000, width:'100%', fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+        <h1 style={{ fontFamily:'Georgia, serif', fontSize:28, fontWeight:700, color:DS.text, marginBottom:4 }}>
+          {t('myAccount')} Settings
+        </h1>
+        <p style={{ color:DS.textSub, fontSize:15, marginBottom:28 }}>Manage your profile and preferences</p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-6">
-              {/* Profile Picture */}
-              <div className="text-center mb-6">
-                <div className="relative inline-block">
-                  {imagePreview ? (
-                    <img 
-                      src={imagePreview} 
-                      alt="Profile" 
-                      className="w-32 h-32 rounded-full object-cover border-4 border-white/20 mb-4"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white text-4xl font-bold mb-4">
-                      {getInitials()}
-                    </div>
-                  )}
-                  
-                  <label className="absolute bottom-4 right-0 bg-green-500 rounded-full p-3 hover:bg-green-600 transition-all cursor-pointer">
-                    <Camera className="h-5 w-5 text-white" />
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <h3 className="text-white font-bold text-xl mb-1">{formData.name || 'User'}</h3>
-                <p className="text-gray-400 capitalize">Property Seeker</p>
+        <div style={{ display:'grid', gridTemplateColumns:'200px 1fr', gap:20, alignItems:'start' }}>
+          <div>
+            <div style={{ background:DS.card, border:`1px solid ${DS.border}`, borderRadius:16, padding:20, textAlign:'center', marginBottom:12, boxShadow:'0 1px 3px rgba(26,8,0,0.05)' }}>
+              <div style={{ position:'relative', display:'inline-block', marginBottom:12 }}>
+                {preview
+                  ? <img src={preview} alt="" style={{ width:76, height:76, borderRadius:16, objectFit:'cover', border:`2px solid ${DS.primaryBorder}` }}/>
+                  : <div style={{ width:76, height:76, borderRadius:16, background:DS.primaryLight, border:`2px solid ${DS.primaryBorder}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <span style={{ fontFamily:'Georgia, serif', fontSize:28, fontWeight:700, color:DS.primary }}>{form.name?.[0]?.toUpperCase()||'U'}</span>
+                    </div>}
+                <button onClick={() => fileRef.current?.click()}
+                  style={{ position:'absolute', bottom:-6, right:-6, width:28, height:28, borderRadius:9, background:DS.primary, border:'2px solid #fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+                  <Camera size={13} color="#fff"/>
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }}
+                  onChange={e => { const f=e.target.files[0]; if(f){const r=new FileReader();r.onloadend=()=>setPreview(r.result);r.readAsDataURL(f);} }}/>
               </div>
-
-              {/* Navigation */}
-              <div className="space-y-2">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-                      activeTab === tab.id
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <tab.icon className="h-5 w-5" />
-                    <span>{tab.label}</span>
-                  </button>
-                ))}
-              </div>
+              <p style={{ fontWeight:700, fontSize:14, color:DS.text, marginBottom:4 }}>{form.name||'User'}</p>
+              <span style={{ background:DS.primaryLight, color:DS.primary, border:`1px solid ${DS.primaryBorder}`, borderRadius:20, padding:'2px 10px', fontSize:11, fontWeight:700 }}>
+                Property Seeker
+              </span>
+            </div>
+            <div style={{ background:DS.card, border:`1px solid ${DS.border}`, borderRadius:16, padding:8, boxShadow:'0 1px 3px rgba(26,8,0,0.05)' }}>
+              {TABS.map(({id,label,icon:Icon}) => (
+                <button key={id} onClick={() => setTab(id)}
+                  style={{ width:'100%', display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderRadius:10, border:'none', cursor:'pointer', marginBottom:2, background:tab===id?DS.primaryLight:'transparent', color:tab===id?DS.primary:DS.textSub, fontWeight:tab===id?700:500, fontSize:13, textAlign:'left', borderLeft:tab===id?`3px solid ${DS.primary}`:'3px solid transparent' }}>
+                  <Icon size={14}/> {label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-8">
-              {/* Profile Tab */}
-              {activeTab === 'profile' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Profile Information</h2>
+          <div style={{ background:DS.card, border:`1px solid ${DS.border}`, borderRadius:16, padding:28, boxShadow:'0 1px 3px rgba(26,8,0,0.05)' }}>
+            {success && <div style={{ display:'flex', alignItems:'center', gap:8, background:'#F0FDF4', border:'1px solid #BBF7D0', color:'#15803D', borderRadius:10, padding:'10px 14px', marginBottom:20, fontSize:14 }}><CheckCircle size={15}/> {t('successMsg')}</div>}
+            {err     && <div style={{ display:'flex', alignItems:'center', gap:8, background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', borderRadius:10, padding:'10px 14px', marginBottom:20, fontSize:14 }}><AlertCircle size={15}/> {err}</div>}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Full Name</label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        placeholder="Enter your full name"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Email</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        disabled
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Phone</label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        placeholder="Enter your phone number"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">City</label>
-                      <input
-                        type="text"
-                        name="city"
-                        value={formData.city}
-                        onChange={handleChange}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        placeholder="Enter your city"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">State</label>
-                      <input
-                        type="text"
-                        name="state"
-                        value={formData.state}
-                        onChange={handleChange}
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        placeholder="Enter your state"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Role</label>
-                      <input
-                        type="text"
-                        value={formData.role}
-                        disabled
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 font-semibold mb-2">Address</label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      placeholder="Enter your complete address"
-                    />
-                  </div>
+            {tab==='profile' && (
+              <>
+                <h3 style={{ fontFamily:'Georgia, serif', fontSize:18, color:DS.text, marginBottom:20 }}>Profile Information</h3>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+                  <FieldInput label={t('fullName')}   value={form.name}   onChange={e=>setForm({...form,name:e.target.value})}   placeholder={t('fullName')}/>
+                  <FieldInput label={t('email')}       value={form.email}  disabled/>
+                  <FieldInput label={t('phoneNumber')} value={form.phone}  onChange={e=>setForm({...form,phone:e.target.value})}  placeholder="+91 98765 43210"/>
+                  <FieldInput label={t('city')}        value={form.city}   onChange={e=>setForm({...form,city:e.target.value})}   placeholder={t('city')}/>
+                  <FieldInput label={t('state')}       value={form.state}  onChange={e=>setForm({...form,state:e.target.value})}  placeholder={t('state')}/>
+                  <FieldInput label="Role"             value={form.role||'USER'} disabled/>
                 </div>
-              )}
-
-              {/* Security Tab */}
-              {activeTab === 'security' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Security Settings</h2>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Current Password</label>
-                      <input
-                        type="password"
-                        name="currentPassword"
-                        value={passwordData.currentPassword}
-                        onChange={handlePasswordChange}
-                        placeholder="Enter current password"
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">New Password</label>
-                      <input
-                        type="password"
-                        name="newPassword"
-                        value={passwordData.newPassword}
-                        onChange={handlePasswordChange}
-                        placeholder="Enter new password"
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-300 font-semibold mb-2">Confirm Password</label>
-                      <input
-                        type="password"
-                        name="confirmPassword"
-                        value={passwordData.confirmPassword}
-                        onChange={handlePasswordChange}
-                        placeholder="Confirm new password"
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handlePasswordSubmit}
-                      disabled={isSaving}
-                      className="bg-gradient-to-r from-red-600 to-pink-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
-                    >
-                      <Lock className="w-5 h-5" />
-                      {isSaving ? 'Changing...' : 'Change Password'}
-                    </button>
-                  </div>
-
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-6 mt-6">
-                    <h3 className="text-white font-bold mb-4">Two-Factor Authentication</h3>
-                    <p className="text-gray-400 mb-4">Add an extra layer of security to your account</p>
-                    <button className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all">
-                      Enable 2FA
-                    </button>
-                  </div>
+                <div style={{ marginTop:14 }}>
+                  <FieldInput label={t('address')}     value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder={t('address')}/>
                 </div>
-              )}
+              </>
+            )}
 
-              {/* Notifications Tab */}
-              {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-white mb-6">Notification Preferences</h2>
+            {tab==='security' && (
+              <>
+                <h3 style={{ fontFamily:'Georgia, serif', fontSize:18, color:DS.text, marginBottom:20 }}>Security Settings</h3>
+                <div style={{ display:'flex', flexDirection:'column', gap:14, maxWidth:380 }}>
+                  <FieldInput label={`Current ${t('password')}`} type="password" value={pwd.current} onChange={e=>setPwd({...pwd,current:e.target.value})} placeholder="••••••••"/>
+                  <FieldInput label={`New ${t('password')}`}     type="password" value={pwd.next}    onChange={e=>setPwd({...pwd,next:e.target.value})}    placeholder="••••••••"/>
+                  <FieldInput label={t('confirmPassword')}       type="password" value={pwd.confirm} onChange={e=>setPwd({...pwd,confirm:e.target.value})} placeholder="••••••••"/>
+                  <button onClick={changePwd} disabled={saving}
+                    style={{ alignSelf:'flex-start', display:'flex', alignItems:'center', gap:8, background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', padding:'9px 18px', borderRadius:10, fontWeight:700, fontSize:14, cursor:'pointer', opacity:saving?0.6:1 }}>
+                    <Lock size={14}/>{saving?t('loading'):`Change ${t('password')}`}
+                  </button>
+                </div>
+              </>
+            )}
 
-                  <div className="space-y-4">
-                    {Object.entries(notifications).map(([key, value]) => (
-                      <div key={key} className="flex items-center justify-between bg-white/5 rounded-xl p-4 border border-white/10">
-                        <div>
-                          <p className="text-white font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1')}</p>
-                          <p className="text-gray-400 text-sm">Receive notifications via {key}</p>
-                        </div>
-                        <button
-                          onClick={() => setNotifications({ ...notifications, [key]: !value })}
-                          className={`relative w-14 h-7 rounded-full transition-colors ${
-                            value ? 'bg-green-500' : 'bg-white/20'
-                          }`}
-                        >
-                          <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                            value ? 'translate-x-7' : 'translate-x-0'
-                          }`}></div>
-                        </button>
+            {tab==='notifications' && (
+              <>
+                <h3 style={{ fontFamily:'Georgia, serif', fontSize:18, color:DS.text, marginBottom:20 }}>Notifications</h3>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {Object.entries(notifs).map(([key,val]) => (
+                    <div key={key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', background:DS.bg, border:`1px solid ${DS.border}`, borderRadius:12 }}>
+                      <div>
+                        <p style={{ fontWeight:600, color:DS.text, fontSize:14 }}>{NLABELS[key]||key}</p>
+                        <p style={{ color:DS.textMuted, fontSize:12, marginTop:2 }}>Receive {(NLABELS[key]||key).toLowerCase()}</p>
                       </div>
-                    ))}
-                  </div>
+                      <Toggle value={val} onChange={() => setNotifs({...notifs,[key]:!val})}/>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </>
+            )}
 
-              {/* Save Button */}
-              <div className="flex items-center justify-end space-x-4 mt-8 pt-8 border-t border-white/10">
-                {saveSuccess && (
-                  <div className="flex items-center text-green-400 space-x-2">
-                    <CheckCircle className="h-5 w-5" />
-                    <span>Changes saved successfully!</span>
-                  </div>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center space-x-2"
-                >
-                  {isSaving ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-5 w-5" />
-                      <span>Save Changes</span>
-                    </>
-                  )}
+            {tab!=='security' && (
+              <div style={{ display:'flex', justifyContent:'flex-end', marginTop:24, paddingTop:18, borderTop:`1px solid ${DS.border}` }}>
+                <button onClick={save} disabled={saving}
+                  style={{ display:'flex', alignItems:'center', gap:8, background:DS.primary, color:'#fff', padding:'10px 22px', borderRadius:12, fontWeight:700, fontSize:14, border:'none', cursor:saving?'not-allowed':'pointer', opacity:saving?0.7:1 }}>
+                  {saving?<><Loader2 size={14} style={{ animation:'spin 1s linear infinite' }}/> {t('loading')}</>:<><Save size={14}/> {t('save')}</>}
                 </button>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
-    </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </PublicLayout>
   );
 };
 

@@ -3,17 +3,24 @@ const cloudinary = require('../config/cloudinary');
 const prisma = new PrismaClient();
 const { sendEmail } = require('../config/email');
 const { propertyAddedEmail } = require('../utils/emailTemplates');
+const { geocodeAddress } = require('../services/mapsService'); // ✅ MAP
 
-// Get all properties (Public - કોઈ પણ જોઈ શકે)
+// Land types - aa public property listings ma nahi aava joiye
+const LAND_TYPES = ['LAND', 'AGRICULTURAL', 'INDUSTRIAL'];
+
+// Get all properties (Public) - Land types exclude thay by default
 const getAllProperties = async (req, res) => {
   try {
-    // Query parameters માંથી filters લો
-    const { type, purpose, city, status, minPrice, maxPrice } = req.query;
+    const { type, purpose, city, status, minPrice, maxPrice, limit } = req.query;
     
-    // Where condition બનાવો
     const where = {};
 
-    if (type) where.type = type;
+    if (type) {
+      where.type = type.toUpperCase();
+    } else {
+      where.type = { notIn: LAND_TYPES };
+    }
+
     if (purpose) where.purpose = purpose;
     if (city) where.city = city;
     if (status) where.status = status;
@@ -23,26 +30,18 @@ const getAllProperties = async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    // Database માંથી properties લાવો
     const properties = await prisma.property.findMany({
       where,
       include: {
         broker: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
+          select: { id: true, name: true, email: true, phone: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      ...(limit ? { take: parseInt(limit) } : {}),
     });
 
-    res.json({ 
-      count: properties.length,
-      properties 
-    });
+    res.json({ count: properties.length, properties });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch properties' });
@@ -58,12 +57,7 @@ const getPropertyById = async (req, res) => {
       where: { id },
       include: {
         broker: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
+          select: { id: true, name: true, email: true, phone: true }
         }
       }
     });
@@ -79,42 +73,32 @@ const getPropertyById = async (req, res) => {
   }
 };
 
-// Create new property (Broker only - માત્ર broker add કરી શકે)
+// Create new property (Broker only)
 const createProperty = async (req, res) => {
   try {
     const {
-      title,
-      description,
-      type,
-      purpose,
-      price,
-      area,
-      bedrooms,
-      bathrooms,
-      address,
-      city,
-      state,
-      pincode,
-      features,
-      images // 🆕 This will be an array of {url, publicId, thumbnail}
+      title, description, type, purpose, price, area,
+      bedrooms, bathrooms, address, city, state, pincode,
+      features, images
     } = req.body;
 
     const brokerId = req.user.id;
 
-    // Validation
     if (!title || !type || !purpose || !price || !area || !address || !city || !state) {
       return res.status(400).json({ 
         error: 'Title, type, purpose, price, area, address, city and state are required' 
       });
     }
 
-    // 🆕 Validate images format (if provided)
     let validatedImages = [];
     if (images && Array.isArray(images)) {
       validatedImages = images.filter(img => img.url && img.publicId);
     }
 
-    // Property create કરો (with broker relation)
+    // ✅ MAP: Geocode address → lat/lng save karo (Google Maps API key hoy to)
+    const { lat, lng } = await geocodeAddress(`${address}, ${city}, ${state}, India`);
+    if (lat && lng) console.log(`📍 Geocoded: lat=${lat}, lng=${lng}`);
+
     const property = await prisma.property.create({
       data: {
         title,
@@ -130,178 +114,138 @@ const createProperty = async (req, res) => {
         state,
         pincode: pincode || '',
         features: features || [],
-        images: validatedImages, // 🆕 JSON array of image objects
+        images: validatedImages,
         status: 'AVAILABLE',
+        latitude: lat,    // ✅ MAP
+        longitude: lng,   // ✅ MAP
         brokerId
       },
       include: {
         broker: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
+          select: { id: true, name: true, email: true, phone: true }
         }
       }
     });
-// 📧 Send Property Confirmation Email
+
     try {
-      const broker = await prisma.broker.findUnique({
-        where: { id: brokerId }
-      });
-      
-      if (broker) {
-        const emailHtml = propertyAddedEmail(broker.name, property);
-        await sendEmail(
-          broker.email,
-          `Property Listed: ${property.title} 🎉`,
-          emailHtml
-        );
-        console.log('✅ Property confirmation email sent to:', broker.email);
+      const brokerEmail = req.user.email;
+      const brokerName  = req.user.name;
+      if (brokerEmail) {
+        const emailHtml = propertyAddedEmail(brokerName, property);
+        await sendEmail(brokerEmail, `Property Listed: ${property.title} 🎉`, emailHtml);
       }
     } catch (emailError) {
       console.error('⚠️ Failed to send property email:', emailError.message);
     }
 
-    res.status(201).json({
-      message: 'Property created successfully',
-      property
-    });
-
+    res.status(201).json({ message: 'Property created successfully', property });
   } catch (error) {
     console.error('Create property error:', error);
-    res.status(500).json({ 
-      error: 'Failed to create property',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to create property', details: error.message });
   }
 };
 
-// Update property (Broker - માત્ર પોતાની property update કરી શકે)
+// Update property (Broker)
 const updateProperty = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = { ...req.body };
 
-    // Check if property exists અને broker ની છે કે નહીં
-    const existingProperty = await prisma.property.findUnique({
-      where: { id }
-    });
+    const existingProperty = await prisma.property.findUnique({ where: { id } });
+    if (!existingProperty) return res.status(404).json({ error: 'Property not found' });
 
-    if (!existingProperty) {
-      return res.status(404).json({ error: 'Property not found' });
-    }
-
-    // Check if this broker owns this property
     if (existingProperty.brokerId !== req.user.id && req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'You can only update your own properties' });
     }
 
-    // 🆕 Handle images update
     if (updateData.images && Array.isArray(updateData.images)) {
       updateData.images = updateData.images.filter(img => img.url && img.publicId);
     }
 
-    // Convert numeric fields
-    if (updateData.price) updateData.price = parseFloat(updateData.price);
-    if (updateData.area) updateData.area = parseFloat(updateData.area);
-    if (updateData.bedrooms) updateData.bedrooms = parseInt(updateData.bedrooms);
+    if (updateData.price)     updateData.price     = parseFloat(updateData.price);
+    if (updateData.area)      updateData.area      = parseFloat(updateData.area);
+    if (updateData.bedrooms)  updateData.bedrooms  = parseInt(updateData.bedrooms);
     if (updateData.bathrooms) updateData.bathrooms = parseInt(updateData.bathrooms);
 
-    // Update property
+    // ✅ MAP: Address badlayo hoy to re-geocode karo
+    const addrChanged = (updateData.address && updateData.address !== existingProperty.address)
+      || (updateData.city  && updateData.city  !== existingProperty.city)
+      || (updateData.state && updateData.state !== existingProperty.state);
+
+    if (addrChanged) {
+      const fullAddr = `${updateData.address || existingProperty.address}, ${updateData.city || existingProperty.city}, ${updateData.state || existingProperty.state}, India`;
+      const { lat, lng } = await geocodeAddress(fullAddr);
+      if (lat && lng) {
+        updateData.latitude  = lat;
+        updateData.longitude = lng;
+        console.log(`📍 Re-geocoded: lat=${lat}, lng=${lng}`);
+      }
+    }
+
     const property = await prisma.property.update({
       where: { id },
       data: updateData,
-      include: {
-        broker: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
-          }
-        }
-      }
+      include: { broker: { select: { id: true, name: true, email: true, phone: true } } }
     });
 
-    res.json({
-      message: 'Property updated successfully',
-      property
-    });
+    res.json({ message: 'Property updated successfully', property });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ 
-      error: 'Failed to update property',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to update property', details: error.message });
   }
 };
 
-// Delete property (Broker - માત્ર પોતાની property delete કરી શકે)
+// Delete property (Broker)
 const deleteProperty = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if property exists અને broker ની છે કે નહીં
-    const existingProperty = await prisma.property.findUnique({
-      where: { id }
-    });
+    const existingProperty = await prisma.property.findUnique({ where: { id } });
+    if (!existingProperty) return res.status(404).json({ error: 'Property not found' });
 
-    if (!existingProperty) {
-      return res.status(404).json({ error: 'Property not found' });
-    }
-
-    // Check if this broker owns this property
     if (existingProperty.brokerId !== req.user.id && req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'You can only delete your own properties' });
     }
 
-    // 🆕 Delete images from Cloudinary before deleting property
     try {
       const images = existingProperty.images;
       if (Array.isArray(images) && images.length > 0) {
-        console.log(`🗑️ Deleting ${images.length} images from Cloudinary...`);
-        
         for (const image of images) {
-          if (image.publicId) {
-            await cloudinary.uploader.destroy(image.publicId);
-            console.log(`✅ Deleted image: ${image.publicId}`);
-          }
+          if (image.publicId) await cloudinary.uploader.destroy(image.publicId);
         }
       }
     } catch (cloudinaryError) {
       console.error('⚠️ Error deleting images from Cloudinary:', cloudinaryError);
-      // Continue with property deletion even if image deletion fails
     }
 
-    // Delete property
-    await prisma.property.delete({
-      where: { id }
-    });
-
+    await prisma.property.delete({ where: { id } });
     res.json({ message: 'Property and images deleted successfully' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ 
-      error: 'Failed to delete property',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to delete property', details: error.message });
   }
 };
 
-// Get broker's own properties (Broker - પોતાની properties જોવા માટે)
+// Get broker's own properties
 const getMyProperties = async (req, res) => {
   try {
+    const { types } = req.query; // 'land' or 'property' or undefined = all
+
+    const where = { brokerId: req.user.id };
+
+    if (types === 'land') {
+      where.type = { in: LAND_TYPES };
+    } else if (types === 'property') {
+      where.type = { notIn: LAND_TYPES };
+    }
+    // types undefined = all (broker panel ma sab dikhav)
+
     const properties = await prisma.property.findMany({
-      where: { brokerId: req.user.id },
+      where,
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ 
-      count: properties.length,
-      properties 
-    });
+    res.json({ count: properties.length, properties });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch properties' });

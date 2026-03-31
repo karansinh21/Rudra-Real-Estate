@@ -2,10 +2,9 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Main authentication function - works for both Broker and User
+// Main authentication function
 const authenticate = async (req, res, next) => {
   try {
-    // Get token from header
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -14,48 +13,34 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // Extract token
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-    // Verify token
+    const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Try to find user in Broker table first
-    let user = await prisma.broker.findUnique({
+    // ✅ FIX: prisma.broker → prisma.user (schema માં માત્ર User model છે)
+    const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        isVerified: true
+        id:         true,
+        name:       true,
+        email:      true,
+        phone:      true,
+        role:       true,
+        status:     true,
+        isVerified: true,
       }
     });
 
-    // If not found in Broker table, try User table
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          role: true,
-          status: true  // ✅ Add status field
-        }
-      });
-    }
-
-    // If still not found in either table
     if (!user) {
       return res.status(401).json({ 
         error: 'Invalid token. User not found.' 
       });
     }
 
-    // Attach user to request
+    // ✅ Blocked or Pending user ને access ন deny
+    if (user.status === 'BLOCKED') {
+      return res.status(403).json({ error: 'Your account has been blocked.' });
+    }
+
     req.user = user;
     next();
 
@@ -65,7 +50,6 @@ const authenticate = async (req, res, next) => {
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token' });
     }
-    
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired. Please login again.' });
     }
@@ -74,9 +58,9 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Alias for authenticate (for backward compatibility)
+// Aliases
 const verifyToken = authenticate;
-const protect = authenticate;  // ✅ ADD THIS LINE
+const protect     = authenticate;
 
 // Check if user is a broker
 const isBroker = (req, res, next) => {
@@ -111,7 +95,7 @@ const isAdmin = (req, res, next) => {
 module.exports = {
   authenticate,
   verifyToken,
-  protect,        // ✅ ADD THIS
+  protect,
   isBroker,
   isLawyer,
   isAdmin

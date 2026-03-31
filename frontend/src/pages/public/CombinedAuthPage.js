@@ -1,821 +1,381 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, User, Phone, Building2, Scale, Users, AlertCircle, CheckCircle, FileText, Apple } from 'lucide-react';
+import {
+  Mail, Lock, Eye, EyeOff, User, Phone,
+  AlertCircle, CheckCircle, FileText, Sparkles,
+  ArrowRight, Loader, ArrowLeft, KeyRound,
+} from 'lucide-react';
 import { useAuth } from '../../utils/AuthContext';
+import { useLanguage } from '../../utils/LanguageContext';
 
-const CombinedAuthPage = () => {
-  const navigate = useNavigate();
+const T = {
+  cream:'#FAF5EE', card:'#FFFFFF', border:'#EDE5D8',
+  brown:'#1A0800', brownMid:'#4A2C1A', muted:'#7A5C48',
+  accent:'#C84B00', accentL:'#FEF0E8', accentB:'rgba(200,75,0,0.18)',
+  gold:'#D4A853',
+  serif:'Georgia, "Times New Roman", serif',
+  sans:"'DM Sans', 'Segoe UI', system-ui, sans-serif",
+};
+
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+const Field = ({ icon: Icon, label, required, ...props }) => (
+  <div>
+    {label && <label style={{ display:'block', fontSize:13, fontWeight:600, color:T.brownMid, marginBottom:7, fontFamily:T.sans }}>{label}{required && <span style={{ color:T.accent }}> *</span>}</label>}
+    <div style={{ position:'relative' }}>
+      {Icon && <Icon size={15} color={T.muted} style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}/>}
+      <input {...props} style={{ width:'100%', fontFamily:T.sans, fontSize:14, boxSizing:'border-box', padding:Icon?'11px 13px 11px 38px':'11px 13px', border:`1.5px solid ${T.border}`, borderRadius:11, outline:'none', color:T.brown, background:T.cream, transition:'all 0.2s' }}
+        onFocus={e=>{ e.target.style.borderColor=T.accent; e.target.style.boxShadow=`0 0 0 3px ${T.accentL}`; e.target.style.background='#fff'; }}
+        onBlur={e =>{ e.target.style.borderColor=T.border; e.target.style.boxShadow='none'; e.target.style.background=T.cream; }} />
+    </div>
+  </div>
+);
+
+const PwdField = ({ label, required, show, onToggle, ...props }) => (
+  <div>
+    <label style={{ display:'block', fontSize:13, fontWeight:600, color:T.brownMid, marginBottom:7, fontFamily:T.sans }}>{label}{required && <span style={{ color:T.accent }}> *</span>}</label>
+    <div style={{ position:'relative' }}>
+      <Lock size={15} color={T.muted} style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}/>
+      <input type={show?'text':'password'} {...props} style={{ width:'100%', fontFamily:T.sans, fontSize:14, boxSizing:'border-box', padding:'11px 40px 11px 38px', border:`1.5px solid ${T.border}`, borderRadius:11, outline:'none', color:T.brown, background:T.cream, transition:'all 0.2s' }}
+        onFocus={e=>{ e.target.style.borderColor=T.accent; e.target.style.boxShadow=`0 0 0 3px ${T.accentL}`; e.target.style.background='#fff'; }}
+        onBlur={e =>{ e.target.style.borderColor=T.border; e.target.style.boxShadow='none'; e.target.style.background=T.cream; }} />
+      <button type="button" onClick={onToggle} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', border:'none', background:'transparent', cursor:'pointer', color:T.muted, padding:0, display:'flex' }}
+        onMouseEnter={e=>e.currentTarget.style.color=T.accent}
+        onMouseLeave={e=>e.currentTarget.style.color=T.muted}>
+        {show?<EyeOff size={15}/>:<Eye size={15}/>}
+      </button>
+    </div>
+  </div>
+);
+
+const TypeCard = ({ active, onClick, icon, title, sub, color }) => (
+  <button type="button" onClick={onClick} style={{ flex:1, padding:'14px 8px', borderRadius:13, cursor:'pointer', fontFamily:T.sans, transition:'all 0.25s', textAlign:'center', border:'none', outline:`2px solid ${active?color:T.border}`, background:active?color+'12':T.cream, transform:active?'translateY(-2px)':'translateY(0)', boxShadow:active?`0 6px 18px ${color}30`:'none' }}>
+    <div style={{ fontSize:22, marginBottom:5 }}>{icon}</div>
+    <p style={{ fontSize:13, fontWeight:700, color:active?color:T.muted, margin:'0 0 2px' }}>{title}</p>
+    <p style={{ fontSize:11, color:T.muted, margin:0 }}>{sub}</p>
+  </button>
+);
+
+const Btn = ({ loading, loadText, children, ...props }) => (
+  <button type="submit" disabled={loading} {...props}
+    style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, background:loading?T.muted:T.accent, color:'#fff', border:'none', borderRadius:12, padding:'13px 20px', fontFamily:T.sans, fontWeight:700, fontSize:15, cursor:loading?'not-allowed':'pointer', width:'100%', boxShadow:loading?'none':'0 6px 20px rgba(200,75,0,0.28)', transition:'all 0.2s', ...(props.style||{}) }}
+    onMouseEnter={e=>{ if(!loading){ e.currentTarget.style.background='#A83A00'; e.currentTarget.style.transform='translateY(-1px)'; }}}
+    onMouseLeave={e=>{ e.currentTarget.style.background=loading?T.muted:T.accent; e.currentTarget.style.transform='translateY(0)'; }}>
+    {loading?<><Loader size={16} style={{ animation:'spin 0.8s linear infinite' }}/> {loadText}</>:children}
+  </button>
+);
+
+export default function CombinedAuthPage() {
+  const navigate  = useNavigate();
   const { login } = useAuth();
-  
-  const [isLogin, setIsLogin] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
+  const { t }     = useLanguage();
+
+  const [view,    setView]    = useState('login');
+  const [showPw,  setShowPw]  = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error,   setError]   = useState('');
   const [success, setSuccess] = useState('');
-  const [registrationType, setRegistrationType] = useState('PUBLIC');
-  
-  const [loginData, setLoginData] = useState({
-    email: '',
-    password: ''
-  });
-  
-  const [registerData, setRegisterData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-    role: 'PUBLIC',
-    professionalType: 'BROKER',
-    licenseNumber: '',
-    experience: '',
-    specialization: '',
-    document: null
-  });
+  const [visible, setVisible] = useState(false);
+  const [regType, setRegType] = useState('PUBLIC');
 
-  const handleLoginChange = (e) => {
-    setLoginData({ ...loginData, [e.target.name]: e.target.value });
-    if (error) setError('');
+  const [loginData, setLoginData] = useState({ email:'', password:'' });
+  const [fpEmail,   setFpEmail]   = useState('');
+  const [reg, setReg] = useState({ name:'', email:'', password:'', confirmPassword:'', phone:'', professionalType:'BROKER', licenseNumber:'', experience:'', specialization:'' });
+
+  useEffect(() => { const tm = setTimeout(() => setVisible(true), 60); return () => clearTimeout(tm); }, []);
+
+  const clr = () => { setError(''); setSuccess(''); };
+  const go  = (v) => { setView(v); clr(); setShowPw(false); };
+
+  const redirectByRole = (role) => {
+    const map = { ADMIN:'/admin/dashboard', BROKER:'/broker/dashboard', LAWYER:'/lawyer/dashboard' };
+    navigate(map[role] || '/');
   };
 
-  const handleRegisterChange = (e) => {
-    setRegisterData({ ...registerData, [e.target.name]: e.target.value });
-    if (error) setError('');
-  };
-
-  const handleFileChange = (e) => {
-    setRegisterData({ ...registerData, document: e.target.files[0] });
-  };
-
-  // 🆕 Google Login
-  const handleGoogleLogin = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      // Google OAuth redirect URL
-      const googleAuthUrl = `http://localhost:5000/api/auth/google`;
-      
-      // Open Google OAuth in popup
-      const popup = window.open(
-        googleAuthUrl,
-        'Google Login',
-        'width=500,height=600'
-      );
-
-      // Listen for message from popup
-      window.addEventListener('message', async (event) => {
-        if (event.origin !== window.location.origin) return;
-        
-        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-          const { token, user } = event.data;
-          localStorage.setItem('token', token);
-          login(user, token);
-          popup?.close();
-          
-          setSuccess('Login successful! Redirecting...');
-          setTimeout(() => {
-            navigate(user.role === 'PUBLIC' ? '/' : `/${user.role.toLowerCase()}/dashboard`);
-          }, 1000);
-        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-          setError(event.data.message || 'Google login failed');
-          popup?.close();
-        }
-      });
-    } catch (err) {
-      console.error('Google login error:', err);
-      setError('Google login failed. Please try again.');
-    } finally {
+  const handleGoogle = () => {
+    setLoading(true); clr();
+    const popup = window.open(`${BASE_URL}/auth/google`, 'Google Login', 'width=500,height=600');
+    const handler = (ev) => {
+      if (ev.origin !== window.location.origin) return;
+      if (ev.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        const { token, user } = ev.data;
+        localStorage.setItem('token', token); login(user, token); popup?.close();
+        setSuccess(t('successMsg'));
+        setTimeout(() => redirectByRole(user.role), 900);
+      } else if (ev.data.type === 'GOOGLE_AUTH_ERROR') {
+        setError(ev.data.message || t('errorMsg')); popup?.close();
+      }
+      window.removeEventListener('message', handler);
       setLoading(false);
-    }
+    };
+    window.addEventListener('message', handler);
   };
 
-  // 🆕 Apple Login
-  const handleAppleLogin = async () => {
+  const handleLogin = async (e) => {
+    e.preventDefault(); clr(); setLoading(true);
     try {
-      setLoading(true);
-      setError('');
-      
-      // Apple OAuth redirect URL
-      const appleAuthUrl = `http://localhost:5000/api/auth/apple`;
-      
-      const popup = window.open(
-        appleAuthUrl,
-        'Apple Login',
-        'width=500,height=600'
-      );
-
-      window.addEventListener('message', async (event) => {
-        if (event.origin !== window.location.origin) return;
-        
-        if (event.data.type === 'APPLE_AUTH_SUCCESS') {
-          const { token, user } = event.data;
-          localStorage.setItem('token', token);
-          login(user, token);
-          popup?.close();
-          
-          setSuccess('Login successful! Redirecting...');
-          setTimeout(() => {
-            navigate(user.role === 'PUBLIC' ? '/' : `/${user.role.toLowerCase()}/dashboard`);
-          }, 1000);
-        } else if (event.data.type === 'APPLE_AUTH_ERROR') {
-          setError(event.data.message || 'Apple login failed');
-          popup?.close();
-        }
-      });
-    } catch (err) {
-      console.error('Apple login error:', err);
-      setError('Apple login failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+      if (!loginData.email || !loginData.password) throw new Error(t('required'));
+      const res  = await fetch(`${BASE_URL}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(loginData) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || t('errorMsg'));
+      localStorage.setItem('token', data.token); login(data.user, data.token);
+      setSuccess(t('successMsg'));
+      setTimeout(() => redirectByRole(data.user.role), 900);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
-  // 🆕 Phone Number Login (OTP)
-  const handlePhoneLogin = async () => {
-    const phoneNumber = prompt('Enter your phone number (with country code):');
-    
-    if (!phoneNumber) return;
-    
+  const handleForgot = async (e) => {
+    e.preventDefault(); clr(); setLoading(true);
     try {
-      setLoading(true);
-      setError('');
-      
-      // Send OTP
-      const response = await fetch('http://localhost:5000/api/auth/phone/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneNumber })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to send OTP');
-      }
-
-      // Prompt for OTP
-      const otp = prompt('Enter the OTP sent to your phone:');
-      
-      if (!otp) {
-        setError('OTP is required');
-        return;
-      }
-
-      // Verify OTP
-      const verifyResponse = await fetch('http://localhost:5000/api/auth/phone/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneNumber, otp })
-      });
-
-      const verifyData = await verifyResponse.json();
-
-      if (!verifyResponse.ok) {
-        throw new Error(verifyData.message || 'Invalid OTP');
-      }
-
-      if (verifyData.token && verifyData.user) {
-        localStorage.setItem('token', verifyData.token);
-        login(verifyData.user, verifyData.token);
-        
-        setSuccess('Login successful! Redirecting...');
-        setTimeout(() => {
-          navigate(verifyData.user.role === 'PUBLIC' ? '/' : `/${verifyData.user.role.toLowerCase()}/dashboard`);
-        }, 1000);
-      }
-    } catch (err) {
-      console.error('Phone login error:', err);
-      setError(err.message || 'Phone login failed');
-    } finally {
-      setLoading(false);
-    }
+      if (!fpEmail) throw new Error(t('required'));
+      const res  = await fetch(`${BASE_URL}/auth/forgot-password`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ email:fpEmail }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || t('errorMsg'));
+      setView('forgot-sent');
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
+  const handleRegister = async (e) => {
+    e.preventDefault(); clr(); setLoading(true);
     try {
-      if (!loginData.email || !loginData.password) {
-        setError('Please fill in all fields');
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Login failed');
-      }
-
-      if (data.token && data.user) {
-        localStorage.setItem('token', data.token);
-        login(data.user, data.token);
-        
-        setSuccess('Login successful! Redirecting...');
-        
-        setTimeout(() => {
-          switch (data.user.role) {
-            case 'ADMIN':
-              navigate('/admin/dashboard');
-              break;
-            case 'BROKER':
-              navigate('/broker/dashboard');
-              break;
-            case 'LAWYER':
-              navigate('/lawyer/dashboard');
-              break;
-            case 'PUBLIC':
-            default:
-              navigate('/');
-              break;
-          }
-        }, 1000);
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please check your credentials.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      if (!registerData.name || !registerData.email || !registerData.password) {
-        setError('Please fill in all required fields');
-        setLoading(false);
-        return;
-      }
-
-      if (registerData.password !== registerData.confirmPassword) {
-        setError('Passwords do not match');
-        setLoading(false);
-        return;
-      }
-
-      if (registerData.password.length < 6) {
-        setError('Password must be at least 6 characters');
-        setLoading(false);
-        return;
-      }
-
-      if (registrationType === 'PROFESSIONAL') {
-        if (!registerData.licenseNumber || !registerData.experience) {
-          setError('Please fill in all professional details');
-          setLoading(false);
-          return;
-        }
-      }
-
-      let finalRole = 'PUBLIC';
-      let registrationStatus = 'ACTIVE';
-
-      if (registrationType === 'PROFESSIONAL') {
-        finalRole = registerData.professionalType;
-        registrationStatus = 'PENDING';
-      }
-
-      const response = await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: registerData.name,
-          email: registerData.email,
-          password: registerData.password,
-          phone: registerData.phone,
-          role: finalRole,
-          status: registrationStatus,
-          professionalDetails: registrationType === 'PROFESSIONAL' ? {
-            licenseNumber: registerData.licenseNumber,
-            experience: registerData.experience,
-            specialization: registerData.specialization
-          } : null
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Registration failed');
-      }
-
-      if (registrationType === 'PROFESSIONAL') {
-        setSuccess('Registration submitted! Your account will be activated after admin verification.');
-        setTimeout(() => {
-          setIsLogin(true);
-          setRegistrationType('PUBLIC');
-          setRegisterData({
-            name: '',
-            email: '',
-            password: '',
-            confirmPassword: '',
-            phone: '',
-            role: 'PUBLIC',
-            professionalType: 'BROKER',
-            licenseNumber: '',
-            experience: '',
-            specialization: '',
-            document: null
-          });
-          setSuccess('');
-        }, 4000);
+      if (!reg.name || !reg.email || !reg.password) throw new Error(t('required'));
+      if (reg.password !== reg.confirmPassword) throw new Error('Passwords do not match');
+      if (reg.password.length < 6) throw new Error('Password must be at least 6 characters');
+      const finalRole = regType==='PROFESSIONAL' ? reg.professionalType : 'PUBLIC';
+      const res = await fetch(`${BASE_URL}/auth/register`, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ name:reg.name, email:reg.email, password:reg.password, phone:reg.phone, role:finalRole, status:regType==='PROFESSIONAL'?'PENDING':'ACTIVE',
+          professionalDetails: regType==='PROFESSIONAL' ? { licenseNumber:reg.licenseNumber, experience:reg.experience, specialization:reg.specialization } : null }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || t('errorMsg'));
+      if (regType === 'PROFESSIONAL') {
+        setSuccess(t('successMsg'));
+        setTimeout(() => { go('login'); setRegType('PUBLIC'); setReg({ name:'', email:'', password:'', confirmPassword:'', phone:'', professionalType:'BROKER', licenseNumber:'', experience:'', specialization:'' }); }, 4000);
       } else {
-        setSuccess('Registration successful! Redirecting to login...');
-        setTimeout(() => {
-          setIsLogin(true);
-          setLoginData({ email: registerData.email, password: '' });
-          setSuccess('');
-        }, 2000);
+        setSuccess(t('successMsg'));
+        setTimeout(() => { go('login'); setLoginData({ email:reg.email, password:'' }); }, 2000);
       }
-    } catch (err) {
-      console.error('Registration error:', err);
-      setError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
+
+  const features = [
+    { icon:'🏠', title:`500+ ${t('properties')}`, desc:'Verified listings across Vadodara & Gujarat' },
+    { icon:'⚖️', title:t('legalSupport'),          desc:'Expert lawyers for all property matters'    },
+    { icon:'👔', title:t('expertBrokers'),          desc:'RERA registered professionals only'         },
+    { icon:'🔒', title:'100% Secure',               desc:'End-to-end encrypted transactions'          },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center py-12 px-4">
-      <div className="max-w-5xl w-full">
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-          <div className="grid md:grid-cols-2">
-            {/* Left Side - Branding */}
-            <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-12 text-white flex flex-col justify-center">
-              <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-4">Rudra Real Estate</h1>
-                <p className="text-blue-100 text-lg">Your trusted partner in property solutions</p>
-              </div>
-              
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="bg-white/20 p-3 rounded-lg">
-                    <Building2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-1">Wide Property Selection</h3>
-                    <p className="text-sm text-blue-100">Browse thousands of verified properties</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4">
-                  <div className="bg-white/20 p-3 rounded-lg">
-                    <Scale className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-1">Legal Support</h3>
-                    <p className="text-sm text-blue-100">Expert legal consultation available</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4">
-                  <div className="bg-white/20 p-3 rounded-lg">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-1">Verified Professionals</h3>
-                    <p className="text-sm text-blue-100">Connect with trusted brokers & lawyers</p>
-                  </div>
-                </div>
-              </div>
+    <div style={{ minHeight:'100vh', background:T.cream, fontFamily:T.sans, display:'flex', alignItems:'center', justifyContent:'center', padding:'32px 16px' }}>
+      <style>{`
+        @keyframes riseIn  { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+        @keyframes slideIn { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes spin    { to{transform:rotate(360deg)} }
+        @keyframes float1  { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-20px) scale(1.05)} 66%{transform:translate(-15px,25px) scale(0.97)} }
+        @keyframes float2  { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(-25px,20px) scale(1.04)} 66%{transform:translate(20px,-15px) scale(0.98)} }
+        @keyframes float3  { 0%,100%{transform:translate(0,0)} 50%{transform:translate(15px,-30px)} }
+        @keyframes shimmer { 0%{background-position:-300% center} 100%{background-position:300% center} }
+        @keyframes gridMove{ 0%{transform:translateY(0)} 100%{transform:translateY(50px)} }
+        .auth-shimmer { background:linear-gradient(90deg,#C84B00,#E8853A,#D4A853,#C84B00); background-size:300% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 4s linear infinite; }
+        *{box-sizing:border-box}
+      `}</style>
+
+      <div style={{ maxWidth:960, width:'100%', display:'grid', gridTemplateColumns:'1fr 1fr', background:T.card, borderRadius:26, overflow:'hidden', boxShadow:'0 32px 80px rgba(26,8,0,0.14)', border:`1px solid ${T.border}`, opacity:visible?1:0, transform:visible?'translateY(0) scale(1)':'translateY(28px) scale(0.98)', transition:'opacity 0.6s ease, transform 0.6s ease' }}>
+
+        {/* LEFT */}
+        <div style={{ background:'linear-gradient(160deg,#1A0800 0%,#3D1200 55%,#1A0800 100%)', padding:'48px 40px', display:'flex', flexDirection:'column', justifyContent:'space-between', position:'relative', overflow:'hidden' }}>
+          <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden', backgroundImage:'linear-gradient(rgba(212,168,83,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(212,168,83,0.04) 1px,transparent 1px)', backgroundSize:'50px 50px', animation:'gridMove 8s linear infinite' }}/>
+          <div style={{ position:'absolute', top:-40, right:-40, width:280, height:280, borderRadius:'50%', pointerEvents:'none', background:'radial-gradient(circle,rgba(200,75,0,0.25) 0%,transparent 70%)', animation:'float1 8s ease-in-out infinite' }}/>
+          <div style={{ position:'absolute', bottom:-50, left:-30, width:220, height:220, borderRadius:'50%', pointerEvents:'none', background:'radial-gradient(circle,rgba(212,168,83,0.15) 0%,transparent 70%)', animation:'float2 10s ease-in-out infinite' }}/>
+
+          <div style={{ position:'relative', zIndex:1 }}>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:7, marginBottom:24, background:'rgba(200,75,0,0.2)', border:'1px solid rgba(200,75,0,0.4)', borderRadius:99, padding:'6px 14px', animation:visible?'riseIn 0.5s ease 0.1s both':'none' }}>
+              <Sparkles size={12} color={T.gold}/>
+              <span style={{ color:T.gold, fontSize:10, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Vadodara's #1 Platform</span>
             </div>
+            <h2 style={{ fontFamily:T.serif, fontSize:'clamp(24px,2.8vw,36px)', fontWeight:400, color:'#FFF8F0', lineHeight:1.2, margin:'0 0 10px', animation:visible?'riseIn 0.55s ease 0.2s both':'none' }}>
+              Rudra<br/><span className="auth-shimmer">Real Estate</span>
+            </h2>
+            <p style={{ color:'rgba(255,248,240,0.5)', fontSize:13, lineHeight:1.65, margin:0, animation:visible?'riseIn 0.55s ease 0.28s both':'none' }}>
+              {t('heroSubtitle')}
+            </p>
+          </div>
 
-            {/* Right Side - Forms */}
-            <div className="p-12">
-              {/* Toggle Buttons */}
-              <div className="flex bg-gray-100 rounded-xl p-1 mb-8">
-                <button
-                  onClick={() => {
-                    setIsLogin(true);
-                    setError('');
-                    setSuccess('');
-                  }}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-                    isLogin
-                      ? 'bg-white text-blue-600 shadow-md'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => {
-                    setIsLogin(false);
-                    setError('');
-                    setSuccess('');
-                  }}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-                    !isLogin
-                      ? 'bg-white text-blue-600 shadow-md'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Sign Up
-                </button>
+          <div style={{ position:'relative', zIndex:1, display:'flex', flexDirection:'column', gap:16, marginTop:32 }}>
+            {features.map((f,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, animation:visible?`riseIn 0.5s ease ${0.35+i*0.08}s both`:'none' }}>
+                <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:'rgba(200,75,0,0.15)', border:'1px solid rgba(200,75,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}>{f.icon}</div>
+                <div>
+                  <p style={{ fontWeight:700, color:'#FFF8F0', margin:'0 0 1px', fontSize:13 }}>{f.title}</p>
+                  <p style={{ color:'rgba(255,248,240,0.42)', fontSize:11.5, margin:0 }}>{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ position:'relative', zIndex:1, marginTop:32, borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:18, display:'flex', gap:24, animation:visible?'riseIn 0.5s ease 0.75s both':'none' }}>
+            {[['500+',t('happyClients')],['120+',t('properties')],['15+',t('lawyers')]].map(([v,l]) => (
+              <div key={l}>
+                <p style={{ fontFamily:T.serif, fontSize:18, fontWeight:700, color:T.accent, margin:'0 0 2px' }}>{v}</p>
+                <p style={{ fontSize:10, color:'rgba(255,248,240,0.35)', margin:0, textTransform:'uppercase', letterSpacing:'0.06em' }}>{l}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* RIGHT */}
+        <div style={{ padding:'44px 40px', overflowY:'auto', maxHeight:'96vh' }}>
+
+          {/* Forgot Sent */}
+          {view==='forgot-sent' && (
+            <div style={{ animation:'riseIn 0.4s ease both', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:400, textAlign:'center', gap:16 }}>
+              <div style={{ width:72, height:72, borderRadius:22, background:T.accentL, border:`1px solid ${T.accentB}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Mail size={32} color={T.accent}/>
+              </div>
+              <h3 style={{ fontFamily:T.serif, fontSize:22, color:T.brown, margin:0 }}>{t('thankYou')}</h3>
+              <p style={{ color:T.muted, fontSize:14, lineHeight:1.6, margin:0, maxWidth:280 }}>
+                Password reset link <strong style={{ color:T.brownMid }}>{fpEmail}</strong> par moki deedhee che.
+              </p>
+              <div style={{ marginTop:8, padding:'10px 16px', background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:11, display:'flex', alignItems:'center', gap:8 }}>
+                <CheckCircle size={15} color="#16A34A"/>
+                <span style={{ fontSize:13, color:'#166534', fontWeight:600 }}>Check your inbox & spam folder</span>
+              </div>
+              <button onClick={() => go('login')} style={{ marginTop:8, display:'flex', alignItems:'center', gap:6, background:'none', border:`1.5px solid ${T.border}`, color:T.brownMid, padding:'9px 20px', borderRadius:11, cursor:'pointer', fontFamily:T.sans, fontWeight:600, fontSize:13 }}>
+                <ArrowLeft size={14}/> {t('back')}
+              </button>
+            </div>
+          )}
+
+          {/* Forgot Form */}
+          {view==='forgot' && (
+            <div style={{ animation:'slideIn 0.35s ease both' }}>
+              <button onClick={() => go('login')} style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', color:T.muted, fontFamily:T.sans, fontSize:13, fontWeight:600, padding:0, marginBottom:24 }}
+                onMouseEnter={e=>e.currentTarget.style.color=T.accent}
+                onMouseLeave={e=>e.currentTarget.style.color=T.muted}>
+                <ArrowLeft size={14}/> {t('back')}
+              </button>
+              <div style={{ marginBottom:28 }}>
+                <div style={{ width:52, height:52, borderRadius:16, background:T.accentL, border:`1px solid ${T.accentB}`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
+                  <KeyRound size={24} color={T.accent}/>
+                </div>
+                <h3 style={{ fontFamily:T.serif, fontSize:22, fontWeight:400, color:T.brown, margin:'0 0 6px' }}>{t('forgotPassword')}</h3>
+              </div>
+              {error && <div style={{ marginBottom:18, padding:'11px 14px', borderRadius:11, background:'#FFF1F2', border:'1px solid #FECDD3', display:'flex', alignItems:'flex-start', gap:9 }}><AlertCircle size={15} color="#DC2626" style={{ flexShrink:0, marginTop:1 }}/><p style={{ fontSize:13, color:'#991B1B', margin:0, fontWeight:600 }}>{error}</p></div>}
+              <form onSubmit={handleForgot} style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                <Field icon={Mail} label={t('email')} required type="email" value={fpEmail} onChange={e => { setFpEmail(e.target.value); clr(); }} placeholder={t('email')}/>
+                <Btn loading={loading} loadText={t('loading')}>Send Reset Link <ArrowRight size={15}/></Btn>
+              </form>
+            </div>
+          )}
+
+          {/* Login / Register */}
+          {(view==='login'||view==='register') && (
+            <>
+              <div style={{ display:'flex', background:T.cream, borderRadius:13, padding:4, marginBottom:28, border:`1px solid ${T.border}`, animation:visible?'riseIn 0.5s ease 0.25s both':'none' }}>
+                {[[t('signIn'),'login'],[t('register'),'register']].map(([label,v]) => (
+                  <button key={v} type="button" onClick={() => go(v)}
+                    style={{ flex:1, padding:'9px 0', borderRadius:10, border:'none', fontFamily:T.sans, fontWeight:700, fontSize:13, cursor:'pointer', transition:'all 0.25s', background:view===v?T.card:'transparent', color:view===v?T.accent:T.muted, boxShadow:view===v?'0 2px 8px rgba(26,8,0,0.08)':'none' }}>
+                    {label}
+                  </button>
+                ))}
               </div>
 
-              {/* Success Message */}
-              {success && (
-                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-green-800 font-medium">{success}</p>
-                </div>
-              )}
+              <div style={{ marginBottom:24, animation:'slideIn 0.3s ease both' }}>
+                <h3 style={{ fontFamily:T.serif, fontSize:22, fontWeight:400, color:T.brown, margin:'0 0 5px' }}>
+                  {view==='login' ? t('loginTitle') : t('registerTitle')}
+                </h3>
+              </div>
 
-              {/* Error Message */}
-              {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-800 font-medium">{error}</p>
-                </div>
-              )}
+              {success && <div style={{ marginBottom:18, padding:'11px 14px', borderRadius:11, background:'#F0FDF4', border:'1px solid #BBF7D0', display:'flex', alignItems:'flex-start', gap:9 }}><CheckCircle size={15} color="#16A34A" style={{ flexShrink:0, marginTop:1 }}/><p style={{ fontSize:13, color:'#166534', margin:0, fontWeight:600 }}>{success}</p></div>}
+              {error   && <div style={{ marginBottom:18, padding:'11px 14px', borderRadius:11, background:'#FFF1F2', border:'1px solid #FECDD3', display:'flex', alignItems:'flex-start', gap:9 }}><AlertCircle size={15} color="#DC2626" style={{ flexShrink:0, marginTop:1 }}/><p style={{ fontSize:13, color:'#991B1B', margin:0, fontWeight:600 }}>{error}</p></div>}
 
-              {/* Login Form */}
-              {isLogin ? (
-                <div>
-                  {/* 🆕 Social Login Buttons */}
-                  <div className="space-y-3 mb-6">
-                    <button
-                      onClick={handleGoogleLogin}
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-3 px-4 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-gray-700 disabled:opacity-50"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                      </svg>
-                      Continue with Google
-                    </button>
-
-                    <button
-                      onClick={handleAppleLogin}
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-black text-white rounded-xl hover:bg-gray-900 transition-colors font-semibold disabled:opacity-50"
-                    >
-                      <Apple className="w-5 h-5" />
-                      Continue with Apple
-                    </button>
-
-                    <button
-                      onClick={handlePhoneLogin}
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-3 px-4 py-3 border-2 border-green-500 text-green-700 rounded-xl hover:bg-green-50 transition-colors font-semibold disabled:opacity-50"
-                    >
-                      <Phone className="w-5 h-5" />
-                      Continue with Phone
-                    </button>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-4 bg-white text-gray-500 font-medium">Or continue with email</span>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleLoginSubmit} className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                        <input
-                          type="email"
-                          name="email"
-                          value={loginData.email}
-                          onChange={handleLoginChange}
-                          placeholder="Enter your email"
-                          className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          name="password"
-                          value={loginData.password}
-                          onChange={handleLoginChange}
-                          placeholder="Enter your password"
-                          className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? 'Signing in...' : 'Sign In'}
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                // Register Form
-                <form onSubmit={handleRegisterSubmit} className="space-y-5 max-h-96 overflow-y-auto pr-2">
-                  {/* Registration Type Selection */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">
-                      Register As *
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRegistrationType('PUBLIC');
-                          setRegisterData({ ...registerData, role: 'PUBLIC' });
-                        }}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          registrationType === 'PUBLIC'
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <Users className={`w-6 h-6 mx-auto mb-2 ${
-                          registrationType === 'PUBLIC' ? 'text-blue-600' : 'text-gray-400'
-                        }`} />
-                        <p className={`text-sm font-semibold ${
-                          registrationType === 'PUBLIC' ? 'text-blue-700' : 'text-gray-600'
-                        }`}>
-                          Property Seeker
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">Instant Access</p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setRegistrationType('PROFESSIONAL')}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          registrationType === 'PROFESSIONAL'
-                            ? 'border-purple-500 bg-purple-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <Building2 className={`w-6 h-6 mx-auto mb-2 ${
-                          registrationType === 'PROFESSIONAL' ? 'text-purple-600' : 'text-gray-400'
-                        }`} />
-                        <p className={`text-sm font-semibold ${
-                          registrationType === 'PROFESSIONAL' ? 'text-purple-700' : 'text-gray-600'
-                        }`}>
-                          Professional
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">Needs Approval</p>
-                      </button>
-                    </div>
-                  </div>
-
-                  {registrationType === 'PROFESSIONAL' && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Professional Type *
-                      </label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setRegisterData({ ...registerData, professionalType: 'BROKER' })}
-                          className={`p-3 rounded-xl border-2 transition-all ${
-                            registerData.professionalType === 'BROKER'
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <Building2 className={`w-5 h-5 mx-auto mb-1 ${
-                            registerData.professionalType === 'BROKER' ? 'text-green-600' : 'text-gray-400'
-                          }`} />
-                          <p className={`text-xs font-semibold ${
-                            registerData.professionalType === 'BROKER' ? 'text-green-700' : 'text-gray-600'
-                          }`}>
-                            Broker
-                          </p>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setRegisterData({ ...registerData, professionalType: 'LAWYER' })}
-                          className={`p-3 rounded-xl border-2 transition-all ${
-                            registerData.professionalType === 'LAWYER'
-                              ? 'border-purple-500 bg-purple-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <Scale className={`w-5 h-5 mx-auto mb-1 ${
-                            registerData.professionalType === 'LAWYER' ? 'text-purple-600' : 'text-gray-400'
-                          }`} />
-                          <p className={`text-xs font-semibold ${
-                            registerData.professionalType === 'LAWYER' ? 'text-purple-700' : 'text-gray-600'
-                          }`}>
-                            Lawyer
-                          </p>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Full Name *
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="text"
-                        name="name"
-                        value={registerData.name}
-                        onChange={handleRegisterChange}
-                        placeholder="Enter your full name"
-                        className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Email Address *
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="email"
-                        name="email"
-                        value={registerData.email}
-                        onChange={handleRegisterChange}
-                        placeholder="Enter your email"
-                        className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Phone Number {registrationType === 'PROFESSIONAL' ? '*' : '(Optional)'}
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={registerData.phone}
-                        onChange={handleRegisterChange}
-                        placeholder="Enter your phone number"
-                        className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required={registrationType === 'PROFESSIONAL'}
-                      />
-                    </div>
-                  </div>
-
-                  {registrationType === 'PROFESSIONAL' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          License/Registration Number *
-                        </label>
-                        <div className="relative">
-                          <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                          <input
-                            type="text"
-                            name="licenseNumber"
-                            value={registerData.licenseNumber}
-                            onChange={handleRegisterChange}
-                            placeholder="Enter license number"
-                            className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Years of Experience *
-                        </label>
-                        <input
-                          type="number"
-                          name="experience"
-                          value={registerData.experience}
-                          onChange={handleRegisterChange}
-                          placeholder="Enter years of experience"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Specialization (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          name="specialization"
-                          value={registerData.specialization}
-                          onChange={handleRegisterChange}
-                          placeholder="e.g., Residential, Commercial, Property Law"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Password *
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        name="password"
-                        value={registerData.password}
-                        onChange={handleRegisterChange}
-                        placeholder="Create a password"
-                        className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Confirm Password *
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        name="confirmPassword"
-                        value={registerData.confirmPassword}
-                        onChange={handleRegisterChange}
-                        placeholder="Confirm your password"
-                        className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {registrationType === 'PROFESSIONAL' && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                      <p className="text-sm text-yellow-800">
-                        <strong>Note:</strong> Professional accounts require admin verification.
-                      </p>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Creating Account...' : registrationType === 'PROFESSIONAL' ? 'Submit for Approval' : 'Create Account'}
+              {view==='login' && (
+                <div key="login-form" style={{ animation:'slideIn 0.3s ease both' }}>
+                  <button type="button" onClick={handleGoogle} disabled={loading}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, width:'100%', padding:'11px 16px', borderRadius:12, border:`1.5px solid ${T.border}`, background:T.card, color:T.brownMid, fontFamily:T.sans, fontWeight:600, fontSize:13.5, cursor:'pointer', transition:'all 0.2s', marginBottom:20, opacity:loading?0.5:1 }}
+                    onMouseEnter={e=>{ if(!loading){ e.currentTarget.style.background=T.accentL; e.currentTarget.style.borderColor=T.accent; }}}
+                    onMouseLeave={e=>{ e.currentTarget.style.background=T.card; e.currentTarget.style.borderColor=T.border; }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    {t('loginWithGoogle')}
                   </button>
+
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
+                    <div style={{ flex:1, height:1, background:T.border }}/>
+                    <span style={{ fontSize:12, color:T.muted, whiteSpace:'nowrap' }}>{t('orContinueWith')}</span>
+                    <div style={{ flex:1, height:1, background:T.border }}/>
+                  </div>
+
+                  <form onSubmit={handleLogin} style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                    <Field icon={Mail} label={t('email')} required type="email" name="email" value={loginData.email} onChange={e=>{ setLoginData({...loginData,email:e.target.value}); clr(); }} placeholder={t('email')}/>
+                    <div>
+                      <PwdField label={t('password')} required show={showPw} onToggle={()=>setShowPw(s=>!s)} name="password" value={loginData.password} onChange={e=>{ setLoginData({...loginData,password:e.target.value}); clr(); }} placeholder={t('password')}/>
+                      <div style={{ textAlign:'right', marginTop:6 }}>
+                        <button type="button" onClick={() => go('forgot')} style={{ background:'none', border:'none', cursor:'pointer', color:T.accent, fontFamily:T.sans, fontSize:12, fontWeight:600, padding:0 }}>{t('forgotPassword')}</button>
+                      </div>
+                    </div>
+                    <Btn loading={loading} loadText={t('loading')}>{t('signIn')} <ArrowRight size={15}/></Btn>
+                  </form>
+
+                  <p style={{ textAlign:'center', marginTop:18, fontSize:13, color:T.muted }}>
+                    {t('noAccount')}{' '}
+                    <button type="button" onClick={() => go('register')} style={{ color:T.accent, fontWeight:700, background:'none', border:'none', cursor:'pointer', fontFamily:T.sans, fontSize:13 }}>{t('register')}</button>
+                  </p>
+                </div>
+              )}
+
+              {view==='register' && (
+                <form key="reg-form" onSubmit={handleRegister} style={{ display:'flex', flexDirection:'column', gap:14, animation:'slideIn 0.3s ease both' }}>
+                  <div>
+                    <label style={{ display:'block', fontSize:13, fontWeight:600, color:T.brownMid, marginBottom:8 }}>{t('register')} As <span style={{ color:T.accent }}>*</span></label>
+                    <div style={{ display:'flex', gap:10 }}>
+                      <TypeCard active={regType==='PUBLIC'}       color={T.accent} onClick={()=>setRegType('PUBLIC')}       icon="🏠" title={t('home')}    sub="Instant Access"  />
+                      <TypeCard active={regType==='PROFESSIONAL'} color="#7C5CFC"  onClick={()=>setRegType('PROFESSIONAL')} icon="👔" title="Professional" sub="Needs Approval" />
+                    </div>
+                  </div>
+
+                  {regType==='PROFESSIONAL' && (
+                    <div>
+                      <label style={{ display:'block', fontSize:13, fontWeight:600, color:T.brownMid, marginBottom:8 }}>Professional {t('type')} <span style={{ color:T.accent }}>*</span></label>
+                      <div style={{ display:'flex', gap:10 }}>
+                        <TypeCard active={reg.professionalType==='BROKER'} color="#0EA5E9" onClick={()=>setReg(d=>({...d,professionalType:'BROKER'}))} icon="🏢" title="Broker" sub="Property Sales"  />
+                        <TypeCard active={reg.professionalType==='LAWYER'} color="#7C5CFC" onClick={()=>setReg(d=>({...d,professionalType:'LAWYER'}))} icon="⚖️" title="Lawyer" sub="Legal Services" />
+                      </div>
+                    </div>
+                  )}
+
+                  <Field icon={User}  label={t('fullName')}    required type="text"  value={reg.name}  onChange={e=>{setReg(d=>({...d,name:e.target.value}));clr();}}  placeholder={t('fullName')}/>
+                  <Field icon={Mail}  label={t('email')}        required type="email" value={reg.email} onChange={e=>{setReg(d=>({...d,email:e.target.value}));clr();}} placeholder={t('email')}/>
+                  <Field icon={Phone} label={t('phoneNumber')}  type="tel" value={reg.phone} onChange={e=>{setReg(d=>({...d,phone:e.target.value}));clr();}} placeholder="+91 98765 43210"/>
+
+                  {regType==='PROFESSIONAL' && (<>
+                    <Field icon={FileText} label="License No." required type="text" value={reg.licenseNumber} onChange={e=>{setReg(d=>({...d,licenseNumber:e.target.value}));clr();}} placeholder="License number"/>
+                    <Field label={t('experience')} required type="number" value={reg.experience} onChange={e=>{setReg(d=>({...d,experience:e.target.value}));clr();}} placeholder="e.g. 5"/>
+                    <Field label={t('specialization')} type="text" value={reg.specialization} onChange={e=>{setReg(d=>({...d,specialization:e.target.value}));clr();}} placeholder="e.g. Residential"/>
+                  </>)}
+
+                  <PwdField label={t('password')} required show={showPw} onToggle={()=>setShowPw(s=>!s)} value={reg.password} onChange={e=>{setReg(d=>({...d,password:e.target.value}));clr();}} placeholder="Min. 6 characters"/>
+                  <PwdField label={t('confirmPassword')} required show={showPw} onToggle={()=>setShowPw(s=>!s)} value={reg.confirmPassword} onChange={e=>{setReg(d=>({...d,confirmPassword:e.target.value}));clr();}} placeholder="Re-enter password"/>
+
+                  <Btn loading={loading} loadText={t('loading')}>{t('register')} <ArrowRight size={15}/></Btn>
+
+                  <p style={{ textAlign:'center', fontSize:13, color:T.muted, margin:0 }}>
+                    {t('alreadyHaveAccount')}{' '}
+                    <button type="button" onClick={() => go('login')} style={{ color:T.accent, fontWeight:700, background:'none', border:'none', cursor:'pointer', fontFamily:T.sans, fontSize:13 }}>{t('signIn')}</button>
+                  </p>
                 </form>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
-};
-
-export default CombinedAuthPage;
+}
